@@ -41,7 +41,9 @@ import sys
 import textwrap
 
 import numpy as np
-from openfisca_core import formulas, formulas_parsers_2to3
+from openfisca_core import formulas
+
+from openfisca_parsers import formulas_parsers_2to3
 
 
 app_name = os.path.splitext(os.path.basename(__file__))[0]

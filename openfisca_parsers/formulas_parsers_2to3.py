@@ -224,7 +224,9 @@ class Call(AbstractWrapper):
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
 
-        if node.type == symbols.arglist:
+        if node is None:
+            children = []
+        elif node.type == symbols.arglist:
             children = node.children
         else:
             children = [node]
@@ -307,18 +309,27 @@ class Class(AbstractWrapper):
     def containing_class(self):
         return self
 
-    def get_variable_value_by_name(self, name, default = UnboundLocalError, state = None):
+    def get_variable_value(self, name, default = UnboundLocalError, state = None):
         value = self.variable_value_by_name.get(name, UnboundLocalError)
         if value is UnboundLocalError:
             container = self.container
             if container is not None:
-                return container.get_variable_value_by_name(name, default = default, state = state)
+                return container.get_variable_value(name, default = default, state = state)
         if value is UnboundLocalError:
             # TODO: Handle class inheritance.
             if default is UnboundLocalError:
                 raise KeyError("Undefined value for {}".format(name))
             value = default
         return value
+
+    def has_variable(self, name, state = None):
+        value = self.variable_value_by_name.get(name, UnboundLocalError)
+        if value is not UnboundLocalError:
+            return True
+        container = self.container
+        if container is not None:
+            return container.has_variable(name, state = state)
+        return False
 
 
 class ClassFileInput(AbstractWrapper):
@@ -648,17 +659,28 @@ class Function(AbstractWrapper):
     def containing_function(self):
         return self
 
-    def get_variable_value_by_name(self, name, default = UnboundLocalError, state = None):
+    def get_variable_value(self, name, default = UnboundLocalError, state = None):
         value = self.variable_value_by_name.get(name, UnboundLocalError)
         if value is UnboundLocalError:
             container = self.container
             if container is not None:
-                return container.get_variable_value_by_name(name, default = default, state = state)
+                return container.get_variable_value(name, default = default, state = state)
         if value is UnboundLocalError:
             if default is UnboundLocalError:
                 raise KeyError("Undefined value for {}".format(name))
             value = default
         return value
+
+    def has_variable(self, name, state = None):
+        value = self.variable_value_by_name.get(name, UnboundLocalError)
+        if value is not UnboundLocalError:
+            return True
+        if value in self.named_parameters or value in self.positional_parameters:
+            return True
+        container = self.container
+        if container is not None:
+            return container.has_variable(name, state = state)
+        return False
 
 
 class FunctionCall(AbstractWrapper):
@@ -671,17 +693,26 @@ class FunctionCall(AbstractWrapper):
         self.definition = definition
         self.variable_value_by_name = collections.OrderedDict()
 
-    def get_variable_value_by_name(self, name, default = UnboundLocalError, state = None):
+    def get_variable_value(self, name, default = UnboundLocalError, state = None):
         value = self.variable_value_by_name.get(name, UnboundLocalError)
         if value is UnboundLocalError:
             container = self.definition.container
             if container is not None:
-                return container.get_variable_value_by_name(name, default = default, state = state)
+                return container.get_variable_value(name, default = default, state = state)
         if value is UnboundLocalError:
             if default is UnboundLocalError:
                 raise KeyError("Undefined value for {}".format(name))
             value = default
         return value
+
+    def has_variable(self, name, state = None):
+        value = self.variable_value_by_name.get(name, UnboundLocalError)
+        if value is not UnboundLocalError:
+            return True
+        container = self.definition.container
+        if container is not None:
+            return container.has_variable(name, state = state)
+        return False
 
     def parse_binary_operation(self, node, left, operator, right, state):
         operation = state.BinaryOperation(
@@ -1370,7 +1401,7 @@ class FunctionCall(AbstractWrapper):
                     )
                 return value, None
             assert False, '{}({}...)\n    node: {}'.format(function_name, condition, ast.dump(node))
-        local_function = self.get_variable_value_by_name(function_name, default = None, state = state)
+        local_function = self.get_variable_value(function_name, default = None, state = state)
         if local_function is not None and isinstance(local_function, state.Function):
             return local_function.call(named_arguments = named_arguments, positional_arguments = positional_arguments,
                 state = state)
@@ -1402,7 +1433,7 @@ class FunctionCall(AbstractWrapper):
             target = node.target
             assert isinstance(target.ctx, ast.Store), ast.dump(node)
             if isinstance(target, ast.Name):
-                left = self.get_variable_value_by_name(target.id, state = state)
+                left = self.get_variable_value(target.id, state = state)
                 right = conv.check(self.parse_value)(node.value, state)
                 value, error = self.parse_binary_operation(node, left, node.op, right, state)
                 if error is not None:
@@ -1667,7 +1698,7 @@ class FunctionCall(AbstractWrapper):
                 return None, None
             if node.id == 'True':
                 return state.Number(data_type = bool, value = True), None
-            return self.get_variable_value_by_name(node.id, state = state), None
+            return self.get_variable_value(node.id, state = state), None
         if isinstance(node, ast.Num):
             return state.Number(data_type = type(node.n), value = node.n), None
         if isinstance(node, ast.Str):
@@ -1925,7 +1956,7 @@ class Module(AbstractWrapper):
     def containing_module(self):
         return self
 
-    def get_variable_value_by_name(self, name, default = UnboundLocalError, state = None):
+    def get_variable_value(self, name, default = UnboundLocalError, state = None):
         value = self.variable_value_by_name.get(name, UnboundLocalError)
         if value is UnboundLocalError:
             value = getattr(self.python, name, UnboundLocalError)
@@ -1941,6 +1972,9 @@ class Module(AbstractWrapper):
             function = conv.check(state.FunctionFileInput.parse)(value, state)
             self.variable_value_by_name[name] = value = function
         return value
+
+    def has_variable(self, name, state = None):
+        return self.get_variable_value(name, default = NameError, state = state) is not NameError
 
 
 class Number(AbstractWrapper):
@@ -2260,14 +2294,19 @@ class State(conv.State):
             if trailer_first_child.type == tokens.DOT:
                 subject = state.Attribute(subject, trailer, container = container, state = state)
             elif trailer_first_child.type == tokens.LPAR:
-                assert len(trailer_children) == 3, "Unexpected length {} of children in power call:\n{}\n\n{}".format(
-                    len(trailer_children), repr(trailer), unicode(trailer).encode('utf-8'))
-                left_parenthesis, arguments, right_parenthesis = trailer_children
+                if len(trailer_children) == 2:
+                    left_parenthesis, right_parenthesis = trailer_children
+                    arguments = None
+                else:
+                    assert len(trailer_children) == 3, \
+                        "Unexpected length {} of children in power call:\n{}\n\n{}".format(len(trailer_children),
+                        repr(trailer), unicode(trailer).encode('utf-8'))
+                    left_parenthesis, arguments, right_parenthesis = trailer_children
                 assert left_parenthesis.type == tokens.LPAR, "Unexpected left parenthesis type:\n{}\n\n{}".format(
                     repr(left_parenthesis), unicode(left_parenthesis).encode('utf-8'))
-                subject = state.Call(subject, arguments, container = container, state = state)
                 assert right_parenthesis.type == tokens.RPAR, "Unexpected right parenthesis type:\n{}\n\n{}".format(
                     repr(right_parenthesis), unicode(right_parenthesis).encode('utf-8'))
+                subject = state.Call(subject, arguments, container = container, state = state)
             else:
                 subject = state.Key(subject, trailer, container = container, state = state)
         return subject
@@ -2311,14 +2350,23 @@ class State(conv.State):
         if node.type == symbols.power:
             return state.parse_power(node, container = container, state = state)
         if node.type == symbols.term:
-            assert len(children) in (3, 5), "Unexpected length {} of children in term:\n{}\n\n{}".format(len(children),
-                repr(node), unicode(node).encode('utf-8'))
+            assert len(children) >= 3 and (len(children) & 1), \
+                "Unexpected length {} of children in term:\n{}\n\n{}".format(len(children), repr(node),
+                unicode(node).encode('utf-8'))
+            return None  # TODO
+        if node.type == symbols.test:
+            assert len(children) == 5, "Unexpected length {} of children in test:\n{}\n\n{}".format(
+                len(children), repr(node), unicode(node).encode('utf-8'))
+            assert children[1].type == tokens.NAME and children[1].value == 'if', \
+                "Unexpected non-if token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            assert children[3].type == tokens.NAME and children[3].value == 'else', \
+                "Unexpected non-else token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
             return None  # TODO
         if node.type == symbols.testlist:
             return state.Tuple(node, container = container, state = state)
         if node.type == tokens.NAME:
             variable = state.Variable(node, container = container, state = state)
-            value = container.get_variable_value_by_name(variable.name, default = NameError, state = state)
+            value = container.has_variable(variable.name, state = state)
             assert value is not NameError, "Undefined variable {}".format(variable.name)
             return variable
         if node.type == tokens.NUMBER:
