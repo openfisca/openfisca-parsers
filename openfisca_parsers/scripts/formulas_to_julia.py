@@ -48,22 +48,76 @@ from openfisca_parsers import formulas_parsers_2to3
 
 
 app_name = os.path.splitext(os.path.basename(__file__))[0]
+julia_file_header = textwrap.dedent(u"""\
+    # OpenFisca -- A versatile microsimulation software
+    # By: OpenFisca Team <contact@openfisca.fr>
+    #
+    # Copyright (C) 2011, 2012, 2013, 2014 OpenFisca Team
+    # https://github.com/openfisca
+    #
+    # This file is part of OpenFisca.
+    #
+    # OpenFisca is free software; you can redistribute it and/or modify
+    # it under the terms of the GNU Affero General Public License as
+    # published by the Free Software Foundation, either version 3 of the
+    # License, or (at your option) any later version.
+    #
+    # OpenFisca is distributed in the hope that it will be useful,
+    # but WITHOUT ANY WARRANTY; without even the implied warranty of
+    # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    # GNU Affero General Public License for more details.
+    #
+    # You should have received a copy of the GNU Affero General Public License
+    # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    """)
 log = logging.getLogger(app_name)
 
 
 class Assignment(formulas_parsers_2to3.Assignment):
     def juliaize(self):
+        parser = self.parser
         # Convert variables to Julia only once, during assignment.
         variables = [
             variable.__class__(
                 container = variable.container,
                 guess = variable._guess,
                 name = variable.name,
-                parser = variable.parser,
+                parser = parser,
                 value = variable.value.juliaize() if variable.value is not None else None,
                 )
             for variable in self.variables
             ]
+        if len(variables) == 1:
+            variable = variables[0]
+            if isinstance(variable.value, parser.Call):
+                call = variable.value
+                call_subject = call.subject
+                if isinstance(call_subject, parser.Attribute):
+                    method_name = call_subject.name
+                    if method_name == 'calculate':
+                        method_subject = call_subject.subject
+                        if isinstance(method_subject, parser.Variable) and method_subject.name == 'simulation':
+                            assert len(call.positional_arguments) >= 1, call.positional_arguments
+                            assert len(call.named_arguments) == 0, call.named_arguments
+                            requested_variable_string = call.positional_arguments[0]
+                            if isinstance(requested_variable_string, parser.String):
+                                assert requested_variable_string.value == variable.name, str((variable.name,
+                                    requested_variable_string.value))
+                                return parser.Call(
+                                    container = self.container,
+                                    # guess = parser.ArrayHandle(parser = parser),  TODO
+                                    parser = parser,
+                                    positional_arguments = [Variable(
+                                        container = self.container,
+                                        # guess = parser.ArrayHandle(parser = parser),  TODO
+                                        name = variable.name,
+                                        parser = parser,
+                                        )] + call.positional_arguments[1:],
+                                    subject = parser.Function(  # TODO: Use Macro or MacroCall.
+                                        name = u'@calculate',
+                                        parser = parser,
+                                        ),
+                                    )
         return self.__class__(
             container = self.container,
             guess = self._guess,
@@ -130,8 +184,7 @@ class Call(formulas_parsers_2to3.Call):
                                 guess = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
-                                subject = parser.Variable(
-                                    container = self.container,
+                                subject = parser.Function(
                                     name = u'firstdayofmonth',
                                     parser = parser,
                                     ),
@@ -142,8 +195,7 @@ class Call(formulas_parsers_2to3.Call):
                                 guess = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
-                                subject = parser.Variable(
-                                    container = self.container,
+                                subject = parser.Function(
                                     name = u'firstdayofyear',
                                     parser = parser,
                                     ),
@@ -160,8 +212,7 @@ class Call(formulas_parsers_2to3.Call):
                             guess = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
-                            subject = parser.Variable(
-                                container = self.container,
+                            subject = parser.Function(
                                 name = u'MonthPeriod',
                                 parser = parser,
                                 ),
@@ -172,12 +223,25 @@ class Call(formulas_parsers_2to3.Call):
                             guess = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
-                            subject = parser.Variable(
-                                container = self.container,
+                            subject = parser.Function(
                                 name = u'YearPeriod',
                                 parser = parser,
                                 ),
                             )
+        elif isinstance(subject, parser.Function):
+            function_name = subject.name
+            if function_name == 'date':
+                assert len(self.positional_arguments) == 3, self.positional_arguments
+                return parser.Call(
+                    container = self.container,
+                    guess = parser.Date(parser = parser),
+                    parser = parser,
+                    positional_arguments = self.positional_arguments,
+                    subject = parser.Function(
+                        name = u'Date',
+                        parser = parser,
+                        ),
+                    )
         return self.__class__(
             container = self.container,
             guess = self._guess,
@@ -232,6 +296,14 @@ class FormulaFunction(formulas_parsers_2to3.FormulaFunction):
             )
 
 
+class Function(formulas_parsers_2to3.Variable):
+    def juliaize(self):
+        return self  # Conversion of function to Julia is done only once, during declaration.
+
+    def source_julia(self):
+        return self.name
+
+
 class Instant(formulas_parsers_2to3.Instant):
     def juliaize(self):
         return self
@@ -254,10 +326,20 @@ class Period(formulas_parsers_2to3.Period):
 
 class Return(formulas_parsers_2to3.Return):
     def juliaize(self):
-        return self
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            value = self.value.juliaize(),
+            )
 
     def source_julia(self):
-        return unicode(self.node)  # TODO
+        if isinstance(self.value, self.parser.Tuple):
+            return u'return {}'.format(u', '.join(
+                item.source_julia()
+                for item in self.value.value
+                ))
+        return u"return {}".format(self.value.source_julia())
 
 
 class Simulation(formulas_parsers_2to3.Simulation):
@@ -272,6 +354,24 @@ class String(formulas_parsers_2to3.String):
     def source_julia(self):
         value = self.value
         return u'"""{}"""'.format(value) if u'"' in value else u'"{}"'.format(value)
+
+
+class Tuple(formulas_parsers_2to3.Tuple):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            value = tuple(
+                item.juliaize()
+                for item in self.value),
+            )
+
+    def source_julia(self):
+        return u'({})'.format(u', '.join(
+            item.source_julia()
+            for item in self.value
+            ))
 
 
 class Variable(formulas_parsers_2to3.Variable):
@@ -298,11 +398,13 @@ class Parser(formulas_parsers_2to3.Parser):
     Call = Call
     FormulaClass = FormulaClass
     FormulaFunction = FormulaFunction
+    Function = Function
     Instant = Instant
     Period = Period
     Return = Return
     Simulation = Simulation
     String = String
+    Tuple = Tuple
     Variable = Variable
 
     def source_julia_column_without_function(self):
@@ -475,28 +577,7 @@ def main():
 
     julia_path = os.path.join(args.julia_package_dir, 'src', 'input_variables.jl')
     with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
-        julia_file.write(textwrap.dedent(u"""\
-            # OpenFisca -- A versatile microsimulation software
-            # By: OpenFisca Team <contact@openfisca.fr>
-            #
-            # Copyright (C) 2011, 2012, 2013, 2014 OpenFisca Team
-            # https://github.com/openfisca
-            #
-            # This file is part of OpenFisca.
-            #
-            # OpenFisca is free software; you can redistribute it and/or modify
-            # it under the terms of the GNU Affero General Public License as
-            # published by the Free Software Foundation, either version 3 of the
-            # License, or (at your option) any later version.
-            #
-            # OpenFisca is distributed in the hope that it will be useful,
-            # but WITHOUT ANY WARRANTY; without even the implied warranty of
-            # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-            # GNU Affero General Public License for more details.
-            #
-            # You should have received a copy of the GNU Affero General Public License
-            # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-            """))
+        julia_file.write(julia_file_header)
         julia_file.write(u'\n')
         for input_variable_definition_julia_str in input_variable_definition_julia_str_by_name.itervalues():
             julia_file.write(u'\n')
@@ -510,28 +591,7 @@ def main():
         if not os.path.exists(julia_dir):
             os.makedirs(julia_dir)
         with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
-            julia_file.write(textwrap.dedent(u"""\
-                # OpenFisca -- A versatile microsimulation software
-                # By: OpenFisca Team <contact@openfisca.fr>
-                #
-                # Copyright (C) 2011, 2012, 2013, 2014 OpenFisca Team
-                # https://github.com/openfisca
-                #
-                # This file is part of OpenFisca.
-                #
-                # OpenFisca is free software; you can redistribute it and/or modify
-                # it under the terms of the GNU Affero General Public License as
-                # published by the Free Software Foundation, either version 3 of the
-                # License, or (at your option) any later version.
-                #
-                # OpenFisca is distributed in the hope that it will be useful,
-                # but WITHOUT ANY WARRANTY; without even the implied warranty of
-                # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-                # GNU Affero General Public License for more details.
-                #
-                # You should have received a copy of the GNU Affero General Public License
-                # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-                """))
+            julia_file.write(julia_file_header)
             for column_name, julia_str in sorted(julia_str_by_name.iteritems()):
                 julia_file.write(u'\n')
                 julia_file.write(julia_str)

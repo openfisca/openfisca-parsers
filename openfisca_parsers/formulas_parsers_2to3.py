@@ -269,6 +269,10 @@ class Call(AbstractWrapper):
                         self.guess = parser.Instant(parser = parser)
                     elif isinstance(method_subject_guess, parser.Period):
                         self.guess = parser.Period(parser = parser)
+            elif isinstance(subject, parser.Function):
+                function_name = subject.name
+                if function_name == 'date':
+                    self.guess = parser.Date(parser = parser)
 
     @classmethod
     def parse(cls, subject, node, container = None, parser = None):
@@ -427,10 +431,10 @@ class ClassFileInput(AbstractWrapper):
 #     pass
 
 
-# class Date(AbstractWrapper):
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
+class Date(AbstractWrapper):
+    @property
+    def guess(self):
+        return self._guess if self._guess is not None else self
 
 
 # class DatedHolder(AbstractWrapper):
@@ -499,7 +503,8 @@ class Decorator(AbstractWrapper):
 
             decorated = children[1]
             assert decorated.type == symbols.funcdef
-            decorated = container.get_function_class(parser = parser)(decorated, container = container, parser = parser)
+            decorated = container.get_function_class(parser = parser).parse(decorated, container = container,
+                parser = parser)
 
             return cls(container = container, decorated = decorated, name = name, node = node, parser = parser,
                 subject = subject)
@@ -894,6 +899,7 @@ class Module(AbstractWrapper):
                 value = parser.Number(parser = parser, value = 1)),
             CREF = parser.Variable(container = self, name = u'CREF', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
+            date = parser.Function(container = self, name = u'date', parser = parser),
             # ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser,
             #     value = parser.UniformList(parser = parser, value = parser.Number(parser = parser, value = x))),
             int16 = parser.Variable(container = self, name = u'int16', parser = parser,
@@ -904,6 +910,8 @@ class Module(AbstractWrapper):
                 value = parser.LawNode(parser = parser)),
             log = parser.Variable(container = self, name = u'log', parser = parser,
                 value = parser.Logger(parser = parser)),
+            max_ = parser.Function(container = self, name = u'max_', parser = parser),
+            min_ = parser.Function(container = self, name = u'min_', parser = parser),
             PAC1 = parser.Variable(container = self, name = u'PAC1', parser = parser,
                 value = parser.Number(parser = parser, value = 2)),
             PAC2 = parser.Variable(container = self, name = u'PAC2', parser = parser,
@@ -976,13 +984,19 @@ class Period(AbstractWrapper):
 class Return(AbstractWrapper):
     value = None
 
-    def __init__(self, container = None, node = None, parser = None, value = None):
-        super(Return, self).__init__(container = container, node = node, parser = parser)
+    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
+        super(Return, self).__init__(container = container, guess = guess, node = node, parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
         containing_function = self.containing_function
         containing_function.returns.append(self)
+
+    @property
+    def guess(self):
+        return self._guess \
+            if self._guess is not None\
+            else self.value.guess if self.value is not None else None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1049,8 +1063,8 @@ class String(AbstractWrapper):
 class Tuple(AbstractWrapper):
     value = None  # Tuple value, as a tuple
 
-    def __init__(self, container = None, node = None, parser = None, value = None):
-        super(Tuple, self).__init__(container = container, node = node, parser = parser)
+    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
+        super(Tuple, self).__init__(container = container, guess = guess, node = node, parser = parser)
         assert isinstance(value, tuple), "Unexpected value for tuple: {} of type {}".format(value,
             type(value))
         self.value = value
@@ -1214,7 +1228,7 @@ class Parser(conv.State):
     Class = Class
     ClassFileInput = ClassFileInput
     # Continue = Continue
-    # Date = Date
+    Date = Date
     # DateTime64 = DateTime64
     # DatedHolder = DatedHolder
     Decorator = Decorator
