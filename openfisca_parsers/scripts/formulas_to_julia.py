@@ -519,6 +519,111 @@ class Parser(formulas_parsers_2to3.Parser):
             )
 
 
+def generate_legislation_node_julia_source(node_json, check_start_date_julia_source = None, check_stop_date_julia_source = None,
+        julia_source_by_path = None, path_fragments = None):
+    if node_json['@type'] == 'Node':
+        for key, value in node_json.iteritems():
+            assert key in (
+                '@context',
+                '@type',
+                'children',
+                'comment',  # TODO
+                'description',  # TODO
+                'start',
+                'stop',
+                ), "Unexpected item key for node: {}".format(key)
+        for child_code, child_json in node_json['children'].iteritems():
+            generate_legislation_node_julia_source(
+                child_json,
+                check_start_date_julia_source = check_start_date_julia_source,
+                check_stop_date_julia_source = check_stop_date_julia_source,
+                julia_source_by_path = julia_source_by_path,
+                path_fragments = path_fragments + [child_code],
+                )
+    elif node_json['@type'] == 'Parameter':
+        for key, value in node_json.iteritems():
+            assert key in (
+                '@type',
+                'comment',
+                'description',
+                'format',
+                'unit',
+                'values',
+                ), "Unexpected item key for parameter: {}".format(key)
+
+        format = node_json.get('format')
+        type_str = {
+            None: u'Float32',
+            'boolean': u'Bool',
+            'float': u'Float32',
+            'integer': u'Int32',
+            'rate': u'Float32',
+            }[format]
+
+        named_arguments = collections.OrderedDict()
+
+        unit = node_json.get('unit')
+        if unit is not None:
+            named_arguments['unit'] = u'"{}"'.format(unit)
+
+        named_arguments['check_start_date'] = check_start_date_julia_source
+        named_arguments['check_stop_date'] = check_stop_date_julia_source
+
+        description = node_json.get('description')
+        if description is not None:
+            named_arguments['description'] = u'"""{}"""'.format(description) \
+                if u'"' in description \
+                else u'"{}"'.format(description)
+
+        comment = node_json.get('comment')
+        if comment is not None:
+            named_arguments['comment'] = u'"""{}"""'.format(comment) if u'"' in comment else u'"{}"'.format(comment)
+
+        julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
+            {name} = Parameter{{{type}}}(
+              [
+            {values}  ],
+            {named_arguments})
+            """).format(
+            name = u'_'.join(path_fragments),
+            named_arguments = u''.join(
+                u'  {} = {},\n'.format(argument_name, argument_str)
+                for argument_name, argument_str in named_arguments.iteritems()
+                ),
+            type = type_str,
+            values = u''.join(
+                u'    DateRangeValue({start_date}, {stop_date}, {value}),\n'.format(
+                    start_date = u'Date({}, {}, {})'.format(*date_range_value['start'].split(u'-')),
+                    stop_date = u'Date({}, {}, {})'.format(*date_range_value['stop'].split(u'-')),
+                    type = type_str,
+                    value = unicode(date_range_value['value']).lower(),  # Method lower() is used for True and False.
+                    )
+                for date_range_value in reversed(node_json['values'])
+                ),
+            )
+    elif node_json['@type'] == 'Scale':
+        for key, value in node_json.iteritems():
+            assert key in (
+                '@type',
+                'brackets',
+                'comment',  # TODO
+                'description',  # TODO
+                'option',  # TODO
+                'unit',  # TODO
+                ), "Unexpected item key for tax scale: {}".format(key)
+        # julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
+        #     {name} = {tax_scale_type}(
+        #     )
+        #     """).format(
+        #     name = u'_'.join(path_fragments),
+        #     tax_scale_type = (u'AmountTaxScale'
+        #         if any('amount' in bracket for bracket in node_json['brackets'])
+        #         else u'RateTaxScale'),
+        #     )
+    else:
+        assert False, "Unexpected type for node: {}".format(node_json['@type'])
+
+
 def main():
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument('julia_package_dir', help = u'path of the directory of the OpenFisca Julia package')
@@ -531,11 +636,28 @@ def main():
     country_package = importlib.import_module(args.country_package)
     TaxBenefitSystem = country_package.init_country()
     tax_benefit_system = TaxBenefitSystem()
+
     parser = Parser(
         driver = lib2to3.pgen2.driver.Driver(lib2to3.pygram.python_grammar, convert = lib2to3.pytree.convert,
             logger = log),
         tax_benefit_system = tax_benefit_system,
         )
+
+    legislation_json = tax_benefit_system.legislation_json
+    parameter_julia_source_by_path = collections.OrderedDict()
+    generate_legislation_node_julia_source(
+        legislation_json,
+        check_start_date_julia_source = u'Date({}, {}, {})'.format(*legislation_json['start'].split(u'-')),
+        check_stop_date_julia_source = u'Date({}, {}, {})'.format(*legislation_json['stop'].split(u'-')),
+        julia_source_by_path = parameter_julia_source_by_path,
+        path_fragments = [],
+        )
+    julia_path = os.path.join(args.julia_package_dir, 'src', 'parameters.jl')
+    with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
+        julia_file.write(julia_file_header)
+        julia_file.write(u'\n')
+        for parameter_julia_source in parameter_julia_source_by_path.itervalues():
+            julia_file.write(parameter_julia_source)
 
     input_variable_definition_julia_str_by_name = collections.OrderedDict()
     output_variable_definition_julia_str_by_name_by_module_name = {}
