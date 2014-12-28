@@ -647,9 +647,9 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                 amount_julia_source = u''
             else:
                 if tax_scale_type is None:
-                    tax_scale_type = u'AmountTaxScale'
+                    tax_scale_type = u'AmountScale'
                 else:
-                    assert tax_scale_type == u'AmountTaxScale'
+                    assert tax_scale_type == u'AmountScale'
                 date_range_values_julia_source = u'\n'.join(
                     u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
                     for date_range_value_json in amount_json
@@ -671,9 +671,9 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                 rate_julia_source = u''
             else:
                 if tax_scale_type is None:
-                    tax_scale_type = u'RateTaxScale'
+                    tax_scale_type = u'MarginalRateScale'
                 else:
-                    assert tax_scale_type == u'RateTaxScale'
+                    assert tax_scale_type == u'MarginalRateScale'
                 date_range_values_julia_source = u'\n'.join(
                     u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
                     for date_range_value_json in rate_json
@@ -690,7 +690,7 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                     )
                 threshold_julia_source = u'      threshold = [\n{}      ],\n'.format(date_range_values_julia_source)
 
-            if tax_scale_type == 'AmountTaxScale':
+            if tax_scale_type == 'AmountScale':
                 bracket_julia_source = u'    AmountBracket(\n{threshold}{amount}{base}    ),\n'.format(
                     amount = amount_julia_source,
                     base = base_julia_source,
