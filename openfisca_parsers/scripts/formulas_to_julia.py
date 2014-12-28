@@ -535,15 +535,16 @@ def generate_date_range_value_julia_source(date_range_value_json):
 
 
 def generate_legislation_node_julia_source(node_json, check_start_date_julia_source = None,
-        check_stop_date_julia_source = None, julia_source_by_path = None, path_fragments = None):
+        check_stop_date_julia_source = None, comments = None, descriptions = None, julia_source_by_path = None,
+        path_fragments = None):
     if node_json['@type'] == 'Node':
         for key in node_json.iterkeys():
             assert key in (
                 '@context',
                 '@type',
                 'children',
-                'comment',  # TODO
-                'description',  # TODO
+                'comment',
+                'description',
                 'start',
                 'stop',
                 ), "Unexpected item key for node: {}".format(key)
@@ -552,6 +553,8 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                 child_json,
                 check_start_date_julia_source = check_start_date_julia_source,
                 check_stop_date_julia_source = check_stop_date_julia_source,
+                comments = comments + [node_json.get('comment')],
+                descriptions = descriptions + [node_json.get('description')],
                 julia_source_by_path = julia_source_by_path,
                 path_fragments = path_fragments + [child_code],
                 )
@@ -584,12 +587,20 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
         named_arguments['check_start_date'] = check_start_date_julia_source
         named_arguments['check_stop_date'] = check_stop_date_julia_source
 
-        description = node_json.get('description')
-        if description is not None:
+        description = u' ; '.join(
+            fragment
+            for fragment in descriptions + [node_json.get('description')]
+            if fragment
+            )
+        if description:
             named_arguments['description'] = generate_string_julia_source(description)
 
-        comment = node_json.get('comment')
-        if comment is not None:
+        comment = u' ; '.join(
+            fragment
+            for fragment in comments + [node_json.get('comment')]
+            if fragment
+            )
+        if comment:
             named_arguments['comment'] = generate_string_julia_source(comment)
 
         julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
@@ -711,12 +722,20 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
         named_arguments['check_start_date'] = check_start_date_julia_source
         named_arguments['check_stop_date'] = check_stop_date_julia_source
 
-        description = node_json.get('description')
-        if description is not None:
+        description = u' ; '.join(
+            fragment
+            for fragment in descriptions + [node_json.get('description')]
+            if fragment
+            )
+        if description:
             named_arguments['description'] = generate_string_julia_source(description)
 
-        comment = node_json.get('comment')
-        if comment is not None:
+        comment = u' ; '.join(
+            fragment
+            for fragment in comments + [node_json.get('comment')]
+            if fragment
+            )
+        if comment:
             named_arguments['comment'] = generate_string_julia_source(comment)
 
         julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
@@ -768,6 +787,8 @@ def main():
         legislation_json,
         check_start_date_julia_source = u'Date({}, {}, {})'.format(*legislation_json['start'].split(u'-')),
         check_stop_date_julia_source = u'Date({}, {}, {})'.format(*legislation_json['stop'].split(u'-')),
+        comments = [],
+        descriptions = [],
         julia_source_by_path = parameter_julia_source_by_path,
         path_fragments = [],
         )
