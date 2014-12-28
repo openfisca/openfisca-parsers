@@ -352,8 +352,7 @@ class String(formulas_parsers_2to3.String):
         return self
 
     def source_julia(self):
-        value = self.value
-        return u'"""{}"""'.format(value) if u'"' in value else u'"{}"'.format(value)
+        return generate_string_julia_source(self.value)
 
 
 class Tuple(formulas_parsers_2to3.Tuple):
@@ -493,18 +492,17 @@ class Parser(formulas_parsers_2to3.Parser):
                 u'cell_default = {}'.format(default_str) if default_str is not None else None,
                 u'cell_format = "{}"'.format(column.val_type) if column.val_type is not None else None,
                 u'cerfa_field = {}'.format(cerfa_field_str) if cerfa_field_str is not None else None,
-                u"label = {}".format(u'"""{}"""'.format(column.label)
-                    if u'"' in column.label
-                    else u'"{}"'.format(column.label)) if column.label not in (u'', column.name) else None,
+                (u"label = {}".format(generate_string_julia_source(column.label))
+                    if column.label not in (u'', column.name) else None),
                 # u'max_length = {}'.format(max_length) if max_length is not None else None,  TODO?
                 "permanent = true" if column.is_permanent else None,
                 u"start_date = Date({}, {}, {})".format(start_date.year, start_date.month,
                     start_date.day) if start_date is not None else None,
                 u"stop_date = Date({}, {}, {})".format(stop_date.year, stop_date.month,
                     stop_date.day) if stop_date is not None else None,
-                (u"url = {}".format(u'"""{}"""'.format(column.url)
-                    if u'"' in column.url
-                    else u'"{}"'.format(column.url))) if column.url not in (None, u'', column.url) else None,
+                (u"url = {}".format(generate_string_julia_source(column.url))
+                    if column.url is not None
+                    else None),
                 u"values = {}".format(values_str) if values_str is not None else None,
                 ]
             if named_argument is not None
@@ -519,10 +517,27 @@ class Parser(formulas_parsers_2to3.Parser):
             )
 
 
-def generate_legislation_node_julia_source(node_json, check_start_date_julia_source = None, check_stop_date_julia_source = None,
-        julia_source_by_path = None, path_fragments = None):
+def generate_date_range_value_julia_source(date_range_value_json):
+    for key in date_range_value_json.iterkeys():
+        assert key in (
+            'comment',
+            'start',
+            'stop',
+            'value',
+            ), "Unexpected item key for date range value: {}".format(key)
+    comment = date_range_value_json.get('comment')
+    return u'DateRangeValue({start_date}, {stop_date}, {value}{comment})'.format(
+        comment = u', comment = {}'.format(generate_string_julia_source(comment)) if comment else u'',
+        start_date = u'Date({}, {}, {})'.format(*date_range_value_json['start'].split(u'-')),
+        stop_date = u'Date({}, {}, {})'.format(*date_range_value_json['stop'].split(u'-')),
+        value = unicode(date_range_value_json['value']).lower(),  # Method lower() is used for True and False.
+        )
+
+
+def generate_legislation_node_julia_source(node_json, check_start_date_julia_source = None,
+        check_stop_date_julia_source = None, julia_source_by_path = None, path_fragments = None):
     if node_json['@type'] == 'Node':
-        for key, value in node_json.iteritems():
+        for key in node_json.iterkeys():
             assert key in (
                 '@context',
                 '@type',
@@ -541,7 +556,7 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                 path_fragments = path_fragments + [child_code],
                 )
     elif node_json['@type'] == 'Parameter':
-        for key, value in node_json.iteritems():
+        for key in node_json.iterkeys():
             assert key in (
                 '@type',
                 'comment',
@@ -571,13 +586,11 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
 
         description = node_json.get('description')
         if description is not None:
-            named_arguments['description'] = u'"""{}"""'.format(description) \
-                if u'"' in description \
-                else u'"{}"'.format(description)
+            named_arguments['description'] = generate_string_julia_source(description)
 
         comment = node_json.get('comment')
         if comment is not None:
-            named_arguments['comment'] = u'"""{}"""'.format(comment) if u'"' in comment else u'"{}"'.format(comment)
+            named_arguments['comment'] = generate_string_julia_source(comment)
 
         julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
             {name} = Parameter{{{type}}}(
@@ -592,36 +605,142 @@ def generate_legislation_node_julia_source(node_json, check_start_date_julia_sou
                 ),
             type = type_str,
             values = u''.join(
-                u'    DateRangeValue({start_date}, {stop_date}, {value}),\n'.format(
-                    start_date = u'Date({}, {}, {})'.format(*date_range_value['start'].split(u'-')),
-                    stop_date = u'Date({}, {}, {})'.format(*date_range_value['stop'].split(u'-')),
-                    type = type_str,
-                    value = unicode(date_range_value['value']).lower(),  # Method lower() is used for True and False.
-                    )
-                for date_range_value in reversed(node_json['values'])
+                u'    {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
+                for date_range_value_json in reversed(node_json['values'])
                 ),
             )
     elif node_json['@type'] == 'Scale':
-        for key, value in node_json.iteritems():
+        for key in node_json.iterkeys():
             assert key in (
                 '@type',
                 'brackets',
-                'comment',  # TODO
-                'description',  # TODO
-                'option',  # TODO
-                'unit',  # TODO
+                'comment',
+                'description',
+                'option',
+                'unit',
                 ), "Unexpected item key for tax scale: {}".format(key)
-        # julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
-        #     {name} = {tax_scale_type}(
-        #     )
-        #     """).format(
-        #     name = u'_'.join(path_fragments),
-        #     tax_scale_type = (u'AmountTaxScale'
-        #         if any('amount' in bracket for bracket in node_json['brackets'])
-        #         else u'RateTaxScale'),
-        #     )
+
+        tax_scale_type = None
+        brackets_julia_source = []
+        for bracket_json in node_json['brackets']:
+            for bracket_key in bracket_json.iterkeys():
+                assert bracket_key in (
+                    'amount',
+                    'base',
+                    'rate',
+                    'threshold',
+                    ), "Unexpected item key for bracket: {}".format(bracket_key)
+
+            amount_json = bracket_json.get('amount')
+            if amount_json is None:
+                amount_julia_source = u''
+            else:
+                if tax_scale_type is None:
+                    tax_scale_type = u'AmountTaxScale'
+                else:
+                    assert tax_scale_type == u'AmountTaxScale'
+                date_range_values_julia_source = u'\n'.join(
+                    u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
+                    for date_range_value_json in amount_json
+                    )
+                amount_julia_source = u'      amount = [\n{}      ],\n'.format(date_range_values_julia_source)
+
+            base_json = bracket_json.get('base')
+            if base_json is None:
+                base_julia_source = u''
+            else:
+                date_range_values_julia_source = u'\n'.join(
+                    u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
+                    for date_range_value_json in base_json
+                    )
+                base_julia_source = u'      base = [\n{}      ],\n'.format(date_range_values_julia_source)
+
+            rate_json = bracket_json.get('rate')
+            if rate_json is None:
+                rate_julia_source = u''
+            else:
+                if tax_scale_type is None:
+                    tax_scale_type = u'RateTaxScale'
+                else:
+                    assert tax_scale_type == u'RateTaxScale'
+                date_range_values_julia_source = u'\n'.join(
+                    u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
+                    for date_range_value_json in rate_json
+                    )
+                rate_julia_source = u'      rate = [\n{}      ],\n'.format(date_range_values_julia_source)
+
+            threshold_json = bracket_json.get('threshold')
+            if threshold_json is None:
+                threshold_julia_source = u''
+            else:
+                date_range_values_julia_source = u'\n'.join(
+                    u'        {},\n'.format(generate_date_range_value_julia_source(date_range_value_json))
+                    for date_range_value_json in threshold_json
+                    )
+                threshold_julia_source = u'      threshold = [\n{}      ],\n'.format(date_range_values_julia_source)
+
+            if tax_scale_type == 'AmountTaxScale':
+                bracket_julia_source = u'    AmountBracket(\n{threshold}{amount}{base}    ),\n'.format(
+                    amount = amount_julia_source,
+                    base = base_julia_source,
+                    threshold = threshold_julia_source,
+                    )
+            else:
+                bracket_julia_source = u'    RateBracket(\n{threshold}{rate}{base}    ),\n'.format(
+                    base = base_julia_source,
+                    rate = rate_julia_source,
+                    threshold = threshold_julia_source,
+                    )
+            brackets_julia_source.append(bracket_julia_source)
+
+        option = node_json.get('option')
+        assert option in (
+            None,
+            'contrib',
+            'main-d-oeuvre',
+            'noncontrib',
+            ), "Unexpected option for tax scale: {}".format(option)
+        # TODO
+
+        named_arguments = collections.OrderedDict()
+
+        unit = node_json.get('unit')
+        if unit is not None:
+            named_arguments['unit'] = u'"{}"'.format(unit)
+
+        named_arguments['check_start_date'] = check_start_date_julia_source
+        named_arguments['check_stop_date'] = check_stop_date_julia_source
+
+        description = node_json.get('description')
+        if description is not None:
+            named_arguments['description'] = generate_string_julia_source(description)
+
+        comment = node_json.get('comment')
+        if comment is not None:
+            named_arguments['comment'] = generate_string_julia_source(comment)
+
+        julia_source_by_path[u'.'.join(path_fragments)] = textwrap.dedent(u"""
+            {name} = {tax_scale_type}(
+              [
+            {brackets}  ],
+            {named_arguments})
+            """).format(
+            brackets = u''.join(brackets_julia_source),
+            name = u'_'.join(path_fragments),
+            named_arguments = u''.join(
+                u'  {} = {},\n'.format(argument_name, argument_str)
+                for argument_name, argument_str in named_arguments.iteritems()
+                ),
+            tax_scale_type = tax_scale_type,
+            )
     else:
         assert False, "Unexpected type for node: {}".format(node_json['@type'])
+
+
+def generate_string_julia_source(s):
+    if u'\n' in s:
+        return u'"""{}"""'.format(s.replace(u'"', u'\\"'))
+    return u'"{}"'.format(s.replace(u'"', u'\\"'))
 
 
 def main():
