@@ -73,23 +73,86 @@ julia_file_header = textwrap.dedent(u"""\
 log = logging.getLogger(app_name)
 
 
+class AndExpression(formulas_parsers_2to3.AndExpression):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            operands = [
+                operand.juliaize()
+                for operand in self.operands
+                ],
+            operator = self.operator,
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u' {} '.format(self.operator).join(
+            operand.source_julia(depth = depth)
+            for operand in self.operands
+            )
+
+
+class ArithmeticExpression(formulas_parsers_2to3.ArithmeticExpression):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            items = [
+                item if item_index & 1 else item.juliaize()
+                for item_index, item in enumerate(self.items)
+                ],
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u' '.join(
+            item if item_index & 1 else item.source_julia(depth = depth)
+            for item_index, item in enumerate(self.items)
+            )
+
+
+class Assert(formulas_parsers_2to3.Assert):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            error = self.error.juliaize() if self.error is not None else None,
+            guess = self._guess,
+            parser = self.parser,
+            test = self.test.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u'@assert {test}{error}'.format(
+            error = u', {}'.format(self.error.source_julia(depth = depth + 1)) if self.error is not None else u'',
+            test = self.test.source_julia(depth = depth + 1),
+            )
+
+
 class Assignment(formulas_parsers_2to3.Assignment):
     def juliaize(self):
         parser = self.parser
-        # Convert variables to Julia only once, during assignment.
-        variables = [
-            variable.__class__(
-                container = variable.container,
-                guess = variable._guess,
-                name = variable.name,
-                parser = parser,
-                value = variable.value.juliaize() if variable.value is not None else None,
-                )
-            for variable in self.variables
+        left = []
+        for left_item in self.left:
+            if isinstance(left_item, parser.Variable) and left_item.value is not None:
+                # Convert variables to Julia only once, during assignment.
+                left.append(left_item.__class__(
+                    container = left_item.container,
+                    guess = left_item._guess,
+                    name = left_item.name,
+                    parser = parser,
+                    value = left_item.value.juliaize(),
+                    ))
+            else:
+                left.append(left_item.juliaize())
+            left_item = left_item.juliaize()
+        right = [
+            right_item.juliaize()
+            for right_item in self.right
             ]
-        if len(variables) == 1:
-            variable = variables[0]
-            if isinstance(variable.value, parser.Call):
+        if len(left) == 1:
+            variable = left[0]
+            if isinstance(left, parser.Variable) and isinstance(variable.value, parser.Call):
                 call = variable.value
                 call_subject = call.subject
                 if isinstance(call_subject, parser.Attribute):
@@ -113,7 +176,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                         name = variable.name,
                                         parser = parser,
                                         )] + call.positional_arguments[1:],
-                                    subject = parser.Function(  # TODO: Use Macro or MacroCall.
+                                    subject = parser.Variable(  # TODO: Use Macro or MacroCall.
                                         name = u'@calculate',
                                         parser = parser,
                                         ),
@@ -121,21 +184,20 @@ class Assignment(formulas_parsers_2to3.Assignment):
         return self.__class__(
             container = self.container,
             guess = self._guess,
+            left = left,
             operator = self.operator,
             parser = self.parser,
-            variables = variables,
+            right = right,
             )
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         left_str = u', '.join(
-            variable.name
-            for variable in self.variables
+            left_item.source_julia(depth = depth + 1)
+            for left_item in self.left
             )
         right_str = u', '.join(
-            variable.value.source_julia()
-            if variable.value is not None
-            else 'TODO'
-            for variable in self.variables
+            right_item.source_julia(depth = depth + 1)
+            for right_item in self.right
             )
         return u'{} {} {}'.format(left_str, self.operator, right_str)
 
@@ -150,9 +212,9 @@ class Attribute(formulas_parsers_2to3.Attribute):
             subject = self.subject.juliaize(),
             )
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         return u"{}.{}".format(
-            self.subject.source_julia(),
+            self.subject.source_julia(depth = depth),
             self.name,
             )
 
@@ -160,6 +222,7 @@ class Attribute(formulas_parsers_2to3.Attribute):
 class Call(formulas_parsers_2to3.Call):
     def juliaize(self):
         parser = self.parser
+        keyword_argument = self.keyword_argument.juliaize() if self.keyword_argument is not None else None
         named_arguments = collections.OrderedDict(
             (argument_name, argument_value.juliaize())
             for argument_name, argument_value in self.named_arguments.iteritems()
@@ -168,6 +231,7 @@ class Call(formulas_parsers_2to3.Call):
             argument_value.juliaize()
             for argument_value in self.positional_arguments
             ]
+        star_argument = self.star_argument.juliaize() if self.star_argument is not None else None
         subject = self.subject.juliaize()
         if isinstance(subject, parser.Attribute):
             method_name = subject.name
@@ -184,7 +248,7 @@ class Call(formulas_parsers_2to3.Call):
                                 guess = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
-                                subject = parser.Function(
+                                subject = parser.Variable(
                                     name = u'firstdayofmonth',
                                     parser = parser,
                                     ),
@@ -195,7 +259,7 @@ class Call(formulas_parsers_2to3.Call):
                                 guess = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
-                                subject = parser.Function(
+                                subject = parser.Variable(
                                     name = u'firstdayofyear',
                                     parser = parser,
                                     ),
@@ -212,7 +276,7 @@ class Call(formulas_parsers_2to3.Call):
                             guess = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
-                            subject = parser.Function(
+                            subject = parser.Variable(
                                 name = u'MonthPeriod',
                                 parser = parser,
                                 ),
@@ -223,12 +287,12 @@ class Call(formulas_parsers_2to3.Call):
                             guess = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
-                            subject = parser.Function(
+                            subject = parser.Variable(
                                 name = u'YearPeriod',
                                 parser = parser,
                                 ),
                             )
-        elif isinstance(subject, parser.Function):
+        elif isinstance(subject, parser.Variable):
             function_name = subject.name
             if function_name == 'date':
                 assert len(self.positional_arguments) == 3, self.positional_arguments
@@ -237,7 +301,7 @@ class Call(formulas_parsers_2to3.Call):
                     guess = parser.Date(parser = parser),
                     parser = parser,
                     positional_arguments = self.positional_arguments,
-                    subject = parser.Function(
+                    subject = parser.Variable(
                         name = u'Date',
                         parser = parser,
                         ),
@@ -245,23 +309,131 @@ class Call(formulas_parsers_2to3.Call):
         return self.__class__(
             container = self.container,
             guess = self._guess,
+            keyword_argument = keyword_argument,
             named_arguments = named_arguments,
             parser = self.parser,
             positional_arguments = positional_arguments,
+            star_argument = star_argument,
             subject = subject,
             )
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
+        star = ([u'*{}'.format(self.star_argument.source_julia(depth = depth + 2))]
+            if self.star_argument is not None
+            else [])
+        keyword = ([u'**{}'.format(self.keyword_argument.source_julia(depth = depth + 2))]
+            if self.keyword_argument is not None
+            else [])
         arguments_str = [
-            argument_value.source_julia()
+            argument_value.source_julia(depth = depth)
             for argument_value in self.positional_arguments
-            ] + [
-            u'{} = {}'.format(argument_name, argument_value.source_julia())
+            ] + star + [
+            u'{} = {}'.format(argument_name, argument_value.source_julia(depth = depth))
             for argument_name, argument_value in self.named_arguments.iteritems()
-            ]
+            ] + keyword
         return u"{}({})".format(
-            self.subject.source_julia(),
+            self.subject.source_julia(depth = depth),
             u', '.join(arguments_str),
+            )
+
+
+class Comparison(formulas_parsers_2to3.Comparison):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            left = self.left.juliaize(),
+            operator = self.operator,
+            parser = self.parser,
+            right = self.right.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u'{} {} {}'.format(self.left.source_julia(depth = depth), self.operator,
+            self.right.source_julia(depth = depth))
+
+
+class Continue(formulas_parsers_2to3.Continue):
+    def juliaize(self):
+        return self  # Conversion of variable to Julia is done only once, during assignment.
+
+    def source_julia(self, depth = 0):
+        return u'continue'
+
+
+class Expression(formulas_parsers_2to3.Expression):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            operands = [
+                operand.juliaize()
+                for operand in self.operands
+                ],
+            operator = self.operator,
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u' {} '.format(self.operator).join(
+            operand.source_julia(depth = depth)
+            for operand in self.operands
+            )
+
+
+class Factor(formulas_parsers_2to3.Factor):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            operand = self.operand.juliaize(),
+            operator = self.operator,
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u'{}{}'.format(self.operator, self.operand.source_julia(depth = depth))
+
+
+class For(formulas_parsers_2to3.For):
+    def juliaize(self):
+        parser = self.parser
+        # Convert variables to Julia only once, during assignment.
+        variable_by_name = collections.OrderedDict(
+            (
+                name,
+                variable.__class__(
+                    container = variable.container,
+                    guess = variable._guess,
+                    name = variable.name,
+                    parser = parser,
+                    value = variable.value.juliaize() if variable.value is not None else None,
+                    ),
+                )
+            for name, variable in self.variable_by_name.iteritems()
+            )
+
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            body = [
+                statement.juliaize()
+                for statement in self.body
+                ],
+            iterator = self.iterator.juliaize(),
+            parser = parser,
+            variable_by_name = variable_by_name,
+            )
+
+    def source_julia(self, depth = 0):
+        return u'\n{indent}for {variables} in {iterator}\n{body}{indent}end\n'.format(
+            body = u''.join(
+                u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
+                for statement in self.body
+                ),
+            indent = u'  ' * depth,
+            iterator = self.iterator.source_julia(depth = depth + 1),
+            variables = u', '.join(self.variable_by_name.iterkeys()),
             )
 
 
@@ -269,12 +441,12 @@ class FormulaClass(formulas_parsers_2to3.FormulaClass):
     def juliaize(self):
         return self
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         parser = self.parser
         statements = None
         for formula in self.variable_by_name.itervalues():
             if isinstance(formula, parser.FormulaFunction):
-                statements = formula.juliaize().source_julia_statements()
+                statements = formula.juliaize().source_julia_statements(depth = depth + 1)
                 break
         return textwrap.dedent(u"""
             {call} do simulation, variable, period
@@ -289,39 +461,224 @@ class FormulaFunction(formulas_parsers_2to3.FormulaFunction):
     def juliaize(self):
         return self
 
-    def source_julia_statements(self):
+    def source_julia_statements(self, depth = 0):
         return u''.join(
-            u'  {}\n'.format(statement.juliaize().source_julia())
+            u'{}{}\n'.format(u'  ' * depth, statement.juliaize().source_julia(depth = depth))
             for statement in self.body
             )
 
 
-class Function(formulas_parsers_2to3.Variable):
+class Function(formulas_parsers_2to3.Function):
     def juliaize(self):
-        return self  # Conversion of function to Julia is done only once, during declaration.
+        parser = self.parser
+        # Convert variables to Julia only once, during assignment.
+        variable_by_name = collections.OrderedDict(
+            (
+                name,
+                variable.__class__(
+                    container = variable.container,
+                    guess = variable._guess,
+                    name = variable.name,
+                    parser = parser,
+                    value = variable.value.juliaize() if variable.value is not None else None,
+                    ),
+                )
+            for name, variable in self.variable_by_name.iteritems()
+            )
 
-    def source_julia(self):
-        return self.name
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            body = [
+                statement.juliaize()
+                for statement in self.body
+                ],
+            keyword_name = self.keyword_name,
+            name = self.name,
+            named_parameters = collections.OrderedDict(
+                (name, value.juliaize())
+                for name, value in self.named_parameters.iteritems()
+                ),
+            parser = parser,
+            positional_parameters = self.positional_parameters,
+            # returns = self.returns
+            star_name = self.star_name,
+            variable_by_name = variable_by_name,
+            )
+
+    def source_julia(self, depth = 0):
+        parameters = []
+        if self.positional_parameters:
+            parameters.extend(self.positional_parameters)
+        if self.star_name:
+            parameters.append(u'*{}'.format(self.star_name))
+        if self.named_parameters:
+            parameters.extend(
+                '{} = {}'.format(name, value.source_julia(depth = depth + 2))
+                for name, value in self.named_parameters.iteritems()
+                )
+        if self.keyword_name:
+            parameters.append(u'**{}'.format(self.keyword_name))
+        return u'\n{indent}function {name}({parameters})\n{body}{indent}end\n'.format(
+            body = u''.join(
+                u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
+                for statement in self.body
+                ),
+            indent = u'  ' * depth,
+            name = self.name,
+            parameters = u', '.join(parameters),
+            )
+
+
+class If(formulas_parsers_2to3.If):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            items = [
+                (
+                    test.juliaize() if test is not None else None,
+                    [
+                        statement.juliaize()
+                        for statement in body
+                        ],
+                    )
+                for test, body in self.items
+                ],
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u''.join(
+            u'{indent}{word}{test}\n{body}'.format(
+                body = u''.join(
+                    u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
+                    for statement in body
+                    ),
+                indent = u'  ' * depth,
+                test = u' {}'.format(test.source_julia(depth = depth + 2)) if test is not None else u'',
+                word = u'else' if test is None else u'if' if index == 0 else u'elseif',
+                )
+            for index, (test, body) in enumerate(self.items)
+            )
 
 
 class Instant(formulas_parsers_2to3.Instant):
     def juliaize(self):
         return self
 
-    # def juliaize_attribute(self, attribute):
-    #     if attribute.name == 'offset':
-    #         return parser.Instant(wrapper = attribute, parser = parser)
-    #     assert False, "Unknown attribute for instant: {}".format(attribute.name)
+
+class Key(formulas_parsers_2to3.Key):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            subject = self.subject.juliaize(),
+            value = self.value.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u"{}[{}]".format(
+            self.subject.source_julia(depth = depth),
+            self.value.source_julia(depth = depth),
+            )
+
+
+class Lambda(formulas_parsers_2to3.Lambda):
+    def juliaize(self):
+        parser = self.parser
+        # Convert variables to Julia only once, during assignment.
+        variable_by_name = collections.OrderedDict(
+            (
+                name,
+                variable.__class__(
+                    container = variable.container,
+                    guess = variable._guess,
+                    name = variable.name,
+                    parser = parser,
+                    value = variable.value.juliaize() if variable.value is not None else None,
+                    ),
+                )
+            for name, variable in self.variable_by_name.iteritems()
+            )
+
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            expression = self.expression.juliaize(),
+            parser = parser,
+            positional_parameters = self.positional_parameters,
+            variable_by_name = variable_by_name,
+            )
+
+    def source_julia(self, depth = 0):
+        return u'({parameters}) -> {expression}'.format(
+            expression = self.expression.source_julia(depth = depth + 1),
+            parameters = u', '.join(self.positional_parameters),
+            )
+
+
+class List(formulas_parsers_2to3.List):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            value = [
+                item.juliaize()
+                for item in self.value
+                ],
+            )
+
+    def source_julia(self, depth = 0):
+        return u'[{}]'.format(u', '.join(
+            item.source_julia(depth = depth)
+            for item in self.value
+            ))
+
+
+class Not(formulas_parsers_2to3.Not):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            value = self.value.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u"!{}".format(
+            self.value.source_julia(depth = depth),
+            )
+
+
+class Number(formulas_parsers_2to3.Number):
+    def juliaize(self):
+        return self
+
+    def source_julia(self, depth = 0):
+        return unicode(self.value)
+
+
+class ParentheticalExpression(formulas_parsers_2to3.ParentheticalExpression):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            parser = self.parser,
+            value = self.value.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u"({})".format(
+            self.value.source_julia(depth = depth),
+            )
 
 
 class Period(formulas_parsers_2to3.Period):
     def juliaize(self):
         return self
-
-    # def juliaize_attribute(self, attribute):
-    #     if attribute.name == 'start':
-    #         return parser.Instant(wrapper = attribute, parser = parser)
-    #     assert False, "Unknown attribute for period: {}".format(attribute.name)
 
 
 class Return(formulas_parsers_2to3.Return):
@@ -333,13 +690,13 @@ class Return(formulas_parsers_2to3.Return):
             value = self.value.juliaize(),
             )
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         if isinstance(self.value, self.parser.Tuple):
             return u'return {}'.format(u', '.join(
-                item.source_julia()
+                item.source_julia(depth = depth)
                 for item in self.value.value
                 ))
-        return u"return {}".format(self.value.source_julia())
+        return u"return {}".format(self.value.source_julia(depth = depth))
 
 
 class Simulation(formulas_parsers_2to3.Simulation):
@@ -351,8 +708,46 @@ class String(formulas_parsers_2to3.String):
     def juliaize(self):
         return self
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         return generate_string_julia_source(self.value)
+
+
+class Term(formulas_parsers_2to3.Term):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            guess = self._guess,
+            items = [
+                item if item_index & 1 else item.juliaize()
+                for item_index, item in enumerate(self.items)
+                ],
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u' '.join(
+            item if item_index & 1 else item.source_julia(depth = depth)
+            for item_index, item in enumerate(self.items)
+            )
+
+
+class Test(formulas_parsers_2to3.Test):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            false_value = self.false_value.juliaize(),
+            guess = self._guess,
+            parser = self.parser,
+            test = self.test.juliaize(),
+            true_value = self.true_value.juliaize(),
+            )
+
+    def source_julia(self, depth = 0):
+        return u'{test} ? {true_value} : {false_value}'.format(
+            false_value = self.false_value.source_julia(depth = depth + 1),
+            test = self.test.source_julia(depth = depth + 1),
+            true_value = self.true_value.source_julia(depth = depth + 1),
+            )
 
 
 class Tuple(formulas_parsers_2to3.Tuple):
@@ -363,12 +758,13 @@ class Tuple(formulas_parsers_2to3.Tuple):
             parser = self.parser,
             value = tuple(
                 item.juliaize()
-                for item in self.value),
+                for item in self.value
+                ),
             )
 
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         return u'({})'.format(u', '.join(
-            item.source_julia()
+            item.source_julia(depth = depth)
             for item in self.value
             ))
 
@@ -377,14 +773,7 @@ class Variable(formulas_parsers_2to3.Variable):
     def juliaize(self):
         return self  # Conversion of variable to Julia is done only once, during assignment.
 
-    # def juliaize_attribute(self, attribute):
-    #     if self.value is not None:
-    #         value = self.value.copy()
-    #         value.wrapper = self
-    #         return value.juliaize_attribute(attribute, parser = self.parser)
-    #     return attribute
-
-    def source_julia(self):
+    def source_julia(self, depth = 0):
         return self.name
 
 
@@ -392,17 +781,34 @@ class Variable(formulas_parsers_2to3.Variable):
 
 
 class Parser(formulas_parsers_2to3.Parser):
+    AndExpression = AndExpression
+    ArithmeticExpression = ArithmeticExpression
+    Assert = Assert
     Assignment = Assignment
     Attribute = Attribute
     Call = Call
+    Comparison = Comparison
+    Continue = Continue
+    Expression = Expression
+    Factor = Factor
+    For = For
     FormulaClass = FormulaClass
     FormulaFunction = FormulaFunction
     Function = Function
+    If = If
     Instant = Instant
+    Key = Key
+    Lambda = Lambda
+    List = List
+    Not = Not
+    Number = Number
+    ParentheticalExpression = ParentheticalExpression
     Period = Period
     Return = Return
     Simulation = Simulation
     String = String
+    Term = Term
+    Test = Test
     Tuple = Tuple
     Variable = Variable
 
@@ -776,6 +1182,7 @@ def main():
     tax_benefit_system = TaxBenefitSystem()
 
     parser = Parser(
+        country_package = country_package,
         driver = lib2to3.pgen2.driver.Driver(lib2to3.pygram.python_grammar, convert = lib2to3.pytree.convert,
             logger = log),
         tax_benefit_system = tax_benefit_system,
@@ -814,6 +1221,13 @@ def main():
             # EntityToPerson or PersonToEntity converters
             continue
 
+        if column.name in (
+                'zone_apl',
+                ):
+            # Skip formulas that can't be easily converted to Julia and handle them as input variables.
+            input_variable_definition_julia_str_by_name[column.name] = parser.source_julia_column_without_function()
+            continue
+
         try:
             formula_class_wrapper = parser.FormulaClassFileInput.parse(column_formula_class, parser = parser)
         except:
@@ -831,7 +1245,16 @@ def main():
         # else:
         #     assert issubclass(column_formula_class, formulas.SimpleFormula), column_formula_class
         #     function_functions = [formula_class_wrapper.value_by_name['function']]
-        julia_str = formula_class_wrapper.juliaize().source_julia()
+
+        try:
+            julia_str = formula_class_wrapper.juliaize().source_julia(depth = 0)
+        except:
+            node = formula_class_wrapper.node
+            if node is not None:
+                print "An exception occurred When juliaizing formula {}:\n{}\n\n{}".format(column.name, repr(node),
+                    unicode(node).encode('utf-8'))
+            raise
+
         module_name = formula_class_wrapper.containing_module.python.__name__
         assert module_name.startswith('openfisca_france.model.')
         module_name = module_name[len('openfisca_france.model.'):]
@@ -857,7 +1280,6 @@ def main():
             for column_name, julia_str in sorted(julia_str_by_name.iteritems()):
                 julia_file.write(u'\n')
                 julia_file.write(julia_str)
-                julia_file.write(u'\n')
 
     return 0
 

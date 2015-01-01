@@ -34,6 +34,7 @@ import itertools
 import lib2to3.pgen2.token
 import lib2to3.pygram
 import lib2to3.pytree
+import os
 import textwrap
 
 import numpy as np
@@ -107,6 +108,83 @@ class AbstractWrapper(object):
     guess = property(guess_getter, guess_setter)
 
 
+class AndExpression(AbstractWrapper):
+    operands = None
+    operator = None
+
+    def __init__(self, container = None, guess = None, node = None, operands = None, operator = None, parser = None):
+        super(AndExpression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(operands, list)
+        self.operands = operands
+        assert isinstance(operator, basestring)
+        self.operator = operator
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.and_expr, "Unexpected and expression type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 3 and (len(children) & 1), \
+            "Unexpected length {} of children in and expression:\n{}\n\n{}".format(len(children), repr(node),
+            unicode(node).encode('utf-8'))
+
+        child_index = 0
+        operands = []
+        operator_symbol = None
+        while child_index < len(children):
+            child = children[child_index]
+            operands.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            operator = children[child_index]
+            assert operator.type == tokens.AMPER, "Unexpected operator type:\n{}\n\n{}".format(repr(node),
+                unicode(node).encode('utf-8'))
+            if operator_symbol is None:
+                operator_symbol = operator.value
+            else:
+                assert operator_symbol == operator.value, "Unexpected operator:\n{}\n\n{}".format(repr(node),
+                    unicode(node).encode('utf-8'))
+            child_index += 1
+
+        return cls(container = container, node = node, parser = parser, operands = operands, operator = operator_symbol)
+
+
+class ArithmeticExpression(AbstractWrapper):
+    items = None
+
+    def __init__(self, container = None, guess = None, items = None, node = None, parser = None):
+        super(ArithmeticExpression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(items, list)
+        assert len(items) >= 3 and (len(items) & 1)
+        self.items = items
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.arith_expr, "Unexpected arithmetic expression type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 3 and (len(children) & 1), \
+            "Unexpected length {} of children in arithmetic expression:\n{}\n\n{}".format(len(children), repr(node),
+            unicode(node).encode('utf-8'))
+
+        child_index = 0
+        items = []
+        while child_index < len(children):
+            child = children[child_index]
+            items.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            operator = children[child_index]
+            assert operator.type in (tokens.MINUS, tokens.PLUS), "Unexpected operator type:\n{}\n\n{}".format(
+                repr(node), unicode(node).encode('utf-8'))
+            items.append(operator.value)
+            child_index += 1
+
+        return cls(container = container, items = items, node = node, parser = parser)
+
+
 # class Array(AbstractWrapper):
 #     column = None
 #     data_type = None
@@ -148,64 +226,112 @@ class AbstractWrapper(object):
 #         return self._guess if self._guess is not None else self.parser.Natural(parser = self.parser)
 
 
-class Assignment(AbstractWrapper):
-    operator = None
-    variables = None
+class Assert(AbstractWrapper):
+    error = None
+    test = None
 
-    def __init__(self, container = None, guess = None, node = None, operator = None, parser = None, variables = None):
-        super(Assignment, self).__init__(container = container, guess = guess, node = node, parser = parser)
-        assert isinstance(operator, basestring)
-        self.operator = operator
-        assert isinstance(variables, list)
-        self.variables = variables
+    def __init__(self, container = None, error = None, guess = None, node = None, parser = None, test = None):
+        super(Assert, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        if error is not None:
+            assert isinstance(error, AbstractWrapper)
+            self.error = error
+        assert isinstance(test, AbstractWrapper)
+        self.test = test
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
-        assert node.type == symbols.expr_stmt, "Expected a node of type {}. Got:\n{}\n\n{}".format(
-            type_symbol(symbols.expr_stmt), repr(node), unicode(node).encode('utf-8'))
+        assert node.type == symbols.assert_stmt, "Unexpected assert type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 2, "Unexpected length {} of children in assert:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        assert_word = children[0]
+        assert assert_word.type == tokens.NAME and assert_word.value == 'assert'
+        test = parser.parse_value(children[1], container = container)
+        # TODO
+        # error = parser.parse_value(error, container = container)
+        error = None
+
+        return cls(container = container, error = error, node = node, parser = parser, test= test)
+
+
+class Assignment(AbstractWrapper):
+    left = None
+    operator = None
+    right = None
+
+    def __init__(self, container = None, guess = None, left = None, node = None, operator = None, parser = None,
+            right = None):
+        super(Assignment, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(left, list)
+        self.left = left
+        assert isinstance(operator, basestring)
+        self.operator = operator
+        assert isinstance(right, list)
+        self.right = right
+
+        if len(left) == len(right) and operator == '=':
+            for left_item, right_item in itertools.izip(left, right):
+                if isinstance(left_item, parser.Variable):
+                    assert left_item is not right_item
+                    left_item.value = right_item
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.expr_stmt, "Unexpected assignement type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
         children = node.children
         assert len(children) == 3, "Unexpected length {} of children in assignment:\n{}\n\n{}".format(
             len(children), repr(node), unicode(node).encode('utf-8'))
         left, operator, right = children
         assert operator.type in (tokens.EQUAL, tokens.MINEQUAL, tokens.PLUSEQUAL, tokens.STAREQUAL), \
             "Unexpected assignment operator:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-        variables = []
-        if left.type == symbols.testlist_star_expr:
-            assert right.type == symbols.testlist_star_expr
-            left_children = left.children
+
+        # Right items must be parsed before left ones, to avoid reuse of left variables (for example in statements like:
+        # period = period).
+        right_items = []
+        if right.type == symbols.testlist_star_expr:
+            assert operator.type == tokens.EQUAL
             right_children = right.children
-            assert len(left_children) == len(right_children), \
-                "Unexpected length difference for left & right in assignment:\n{}\n\n{}".format(repr(node),
-                    unicode(node).encode('utf-8'))
+            child_index = 0
+            while child_index < len(right_children):
+                right_child = right_children[child_index]
+                right_items.append(parser.parse_value(right_child, container = container))
+                child_index += 1
+                if child_index >= len(right_children):
+                    break
+                assert right_children[child_index].type == tokens.COMMA
+                child_index += 1
+        else:
+            right_items.append(parser.parse_value(right, container = container))
+
+        left_items = []
+        if left.type == symbols.testlist_star_expr:
+            assert operator.type == tokens.EQUAL
+            left_children = left.children
             child_index = 0
             while child_index < len(left_children):
                 left_child = left_children[child_index]
                 assert left_child.type == tokens.NAME
-                assert operator.value == tokens.EQUAL
-                right_child = right_children[child_index]
-                value = parser.parse_value(right_child, container = container)
-                variable = parser.Variable.parse(left_child, container = container, parser = parser, value = value)
-                variables.append(variable)
+                variable = parser.Variable.parse(left_child, container = container, parser = parser)
+                left_items.append(variable)
                 container.variable_by_name[variable.name] = variable
-
                 child_index += 1
                 if child_index >= len(left_children):
                     break
                 assert left_children[child_index].type == tokens.COMMA
                 child_index += 1
         elif left.type == symbols.power:
-            TODO
-            # self.left = parser.parse_power(left, container = container)
-            # self.right = parser.parse_value(right, container = container)
+            left_items.append(parser.parse_power(left, container = container))
         else:
             assert left.type == tokens.NAME, \
                 "Unexpected assignment left operand:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-            value = parser.parse_value(right, container = container)
-            variable = parser.Variable.parse(left, container = container, parser = parser, value = value)
-            variables.append(variable)
+            variable = parser.Variable.parse(left, container = container, parser = parser)
+            left_items.append(variable)
             container.variable_by_name[variable.name] = variable
-        return cls(container = container, node = node, operator = operator.value, parser = parser,
-            variables = variables)
+
+        return cls(container = container, left = left_items, node = node, operator = operator.value, parser = parser,
+            right = right_items)
 
 
 class Attribute(AbstractWrapper):
@@ -240,13 +366,18 @@ class Attribute(AbstractWrapper):
 
 
 class Call(AbstractWrapper):
+    keyword_argument = None
     named_arguments = None
     positional_arguments = None
+    star_argument = None
     subject = None
 
-    def __init__(self, container = None, guess = None, named_arguments = None, node = None, parser = None,
-            positional_arguments = None, subject = None):
+    def __init__(self, container = None, guess = None, keyword_argument = None, named_arguments = None, node = None,
+            parser = None, positional_arguments = None, star_argument = None, subject = None):
         super(Call, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        if keyword_argument is not None:
+            assert isinstance(keyword_argument, AbstractWrapper)
+            self.keyword_argument = keyword_argument
         if named_arguments is None:
             named_arguments = collections.OrderedDict()
         else:
@@ -257,6 +388,9 @@ class Call(AbstractWrapper):
         else:
             assert isinstance(positional_arguments, list)
         self.positional_arguments = positional_arguments
+        if star_argument is not None:
+            assert isinstance(star_argument, AbstractWrapper)
+            self.star_argument = star_argument
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
 
@@ -276,12 +410,16 @@ class Call(AbstractWrapper):
 
     @classmethod
     def parse(cls, subject, node, container = None, parser = None):
-        if node.type == symbols.arglist:
+        if node is None:
+            children = []
+        elif node.type == symbols.arglist:
             children = node.children
         else:
             children = [node]
+        keyword_argument = None
         named_arguments = collections.OrderedDict()
         positional_arguments = []
+        star_argument = None
         child_index = 0
         while child_index < len(children):
             argument = children[child_index]
@@ -298,7 +436,17 @@ class Call(AbstractWrapper):
                 named_arguments[argument_name.value] = parser.parse_value(argument_value, container = container)
             else:
                 # Positional argument
-                positional_arguments.append(parser.parse_value(argument, container = container))
+                if argument.type == tokens.STAR:
+                    child_index += 1
+                    argument = children[child_index]
+                    if argument.type == tokens.STAR:
+                        child_index += 1
+                        argument = children[child_index]
+                        keyword_argument = parser.parse_value(argument, container = container)
+                    else:
+                        star_argument = parser.parse_value(argument, container = container)
+                else:
+                    positional_arguments.append(parser.parse_value(argument, container = container))
             child_index += 1
             if child_index >= len(children):
                 break
@@ -306,8 +454,9 @@ class Call(AbstractWrapper):
             assert child.type == tokens.COMMA, "Unexpected comma type:\n{}\n\n{}".format(repr(child),
                 unicode(child).encode('utf-8'))
             child_index += 1
-        return cls(container = container, named_arguments = named_arguments, node = node, parser = parser,
-            positional_arguments = positional_arguments, subject = subject)
+        return cls(container = container, keyword_argument = keyword_argument, named_arguments = named_arguments,
+            node = node, parser = parser, positional_arguments = positional_arguments, star_argument = star_argument,
+            subject = subject)
 
 
 class Class(AbstractWrapper):
@@ -411,12 +560,18 @@ class ClassFileInput(AbstractWrapper):
         source_lines, line_number = inspect.getsourcelines(class_definition)
         source = textwrap.dedent(''.join(source_lines))
         node = parser.driver.parse_string(source)
-        assert node.type == symbols.file_input, "Expected a node of type {}. Got:\n{}\n\n{}".format(
-            type_symbol(symbols.file_input), repr(node), unicode(node).encode('utf-8'))
+        assert node.type == symbols.file_input, "Unexpected file input type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
         children = node.children
         assert len(children) == 2 and children[0].type == symbols.classdef and children[1].type == tokens.ENDMARKER, \
             "Unexpected node children in:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-        module = parser.Module(node, python = inspect.getmodule(class_definition), parser = parser)
+        python_module = inspect.getmodule(class_definition)
+        assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
+            "Requested class is defined outside country_package:\n{}".format(source)
+        module = parser.python_module_by_name.get(python_module.__name__)
+        if module is None:
+            parser.python_module_by_name[python_module.__name__] = module = parser.Module(node, python = python_module,
+                parser = parser)
         self = cls(parser = parser)
         class_definition_class = self.get_class_class(parser = parser)
         try:
@@ -427,8 +582,66 @@ class ClassFileInput(AbstractWrapper):
             raise
 
 
-# class Continue(AbstractWrapper):
-#     pass
+class Comparison(AbstractWrapper):
+    left = None
+    operator = None
+    right = None
+
+    def __init__(self, container = None, guess = None, left = None, node = None, operator = None, parser = None,
+            right = None):
+        super(Comparison, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(left, AbstractWrapper)
+        self.left = left
+        assert isinstance(operator, basestring)
+        self.operator = operator
+        assert isinstance(right, AbstractWrapper)
+        self.right = right
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.comparison, "Unexpected comparison type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 3, "Unexpected length {} of children in comparison:\n{}\n\n{}".format(len(children),
+            repr(node), unicode(node).encode('utf-8'))
+        left, operator, right = children
+        left = parser.parse_value(left, container = container)
+        if operator.type == tokens.NAME:
+            assert operator.value in ('in', 'is'), "Unexpected operator type:\n{}\n\n{}".format(repr(node),
+                unicode(node).encode('utf-8'))
+            operator_symbol = operator.value
+        elif operator.type == symbols.comp_op:
+            operator_children = operator.children
+            assert len(operator_children) == 2, "Unexpected length {} of children in comp_op:\n{}\n\n{}".format(
+                len(operator_children), repr(node), unicode(node).encode('utf-8'))
+            first_word, second_word = operator_children
+            if first_word.type == tokens.NAME and first_word.value == 'is' and second_word.type == tokens.NAME \
+                    and second_word.value == 'not':
+                operator_symbol = 'is not'
+            elif first_word.type == tokens.NAME and first_word.value == 'not' and second_word.type == tokens.NAME \
+                    and second_word.value == 'in':
+                operator_symbol = 'not in'
+            else:
+                assert False, "Unexpected comp_op children:\n{}\n\n{}".format(repr(node),
+                    unicode(node).encode('utf-8'))
+        else:
+            assert operator.type in (
+                tokens.EQEQUAL,
+                tokens.GREATER,
+                tokens.GREATEREQUAL,
+                tokens.LESS,
+                tokens.LESSEQUAL,
+                tokens.NOTEQUAL,
+                ), "Unexpected operator type:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            operator_symbol = operator.value
+        right = parser.parse_value(right, container = container)
+
+        return cls(container = container, left = left, node = node, parser = parser, operator = operator_symbol,
+            right = right)
+
+
+class Continue(AbstractWrapper):
+    pass
 
 
 class Date(AbstractWrapper):
@@ -555,29 +768,155 @@ class Enum(AbstractWrapper):
 #             self.star_arguments = star_arguments
 
 
-# class For(AbstractWrapper):
-#     def __init__(self, node, container = None, parser = None):
-#         super(For, self).__init__(node, container = container, parser = parser)
+class Expression(AbstractWrapper):
+    operands = None
+    operator = None
 
-#         # TODO: Parse and store attributes.
+    def __init__(self, container = None, guess = None, node = None, operands = None, operator = None, parser = None):
+        super(Expression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(operands, list)
+        self.operands = operands
+        assert isinstance(operator, basestring)
+        self.operator = operator
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.expr, "Unexpected expression type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 3 and (len(children) & 1), \
+            "Unexpected length {} of children in expression:\n{}\n\n{}".format(len(children), repr(node),
+            unicode(node).encode('utf-8'))
+
+        child_index = 0
+        operands = []
+        operator_symbol = None
+        while child_index < len(children):
+            child = children[child_index]
+            operands.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            operator = children[child_index]
+            assert operator.type == tokens.VBAR, "Unexpected operator type:\n{}\n\n{}".format(repr(node),
+                unicode(node).encode('utf-8'))
+            if operator_symbol is None:
+                operator_symbol = operator.value
+            else:
+                assert operator_symbol == operator.value, "Unexpected operator:\n{}\n\n{}".format(repr(node),
+                    unicode(node).encode('utf-8'))
+            child_index += 1
+
+        return cls(container = container, node = node, parser = parser, operands = operands, operator = operator_symbol)
+
+
+class Factor(AbstractWrapper):
+    operand = None
+    operator = None
+
+    def __init__(self, container = None, guess = None, node = None, operand = None, operator = None, parser = None):
+        super(Factor, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(operand, AbstractWrapper)
+        self.operand = operand
+        assert isinstance(operator, basestring)
+        self.operator = operator
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.factor, "Unexpected factor type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 2, "Unexpected length {} of children in factor:\n{}\n\n{}".format(len(children),
+            repr(node), unicode(node).encode('utf-8'))
+        operator, operand = children
+        assert operator.type in (tokens.MINUS, tokens.TILDE), "Unexpected operator type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        operand = parser.parse_value(operand, container = container)
+        return cls(container = container, node = node, operand = operand, operator = operator.value, parser = parser)
+
+
+class For(AbstractWrapper):
+    body = None
+    iterator = None
+    variable_by_name = None
+
+    def __init__(self, container = None, guess = None, iterator = None, node = None, body = None, parser = None,
+            variable_by_name = None):
+        super(For, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        if body is not None:
+            assert isinstance(body, list)
+            self.body = body
+        assert isinstance(iterator, AbstractWrapper)
+        self.iterator = iterator
+        assert isinstance(variable_by_name, collections.OrderedDict)
+        self.variable_by_name = variable_by_name
+        container.variable_by_name.update(variable_by_name)
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.for_stmt, "Unexpected for statement type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 6, "Unexpected length {} of children in for statement:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        for_word, variables, in_word, iterator, colon, body = children
+        assert for_word.type == tokens.NAME and for_word.value == 'for'
+        variable_by_name = collections.OrderedDict()
+        if variables.type == symbols.exprlist:
+            variables = variables.children
+            variable_index = 0
+            while variable_index < len(variables):
+                variable = variables[variable_index]
+                assert variable.type == tokens.NAME
+                variable_name = variable.value
+                variable_by_name[variable_name] = parser.Variable(container = container, name = variable_name,
+                    parser = parser)
+                variable_index += 1
+                if variable_index >= len(variables):
+                    break
+                comma = variables[variable_index]
+                assert comma.type == tokens.COMMA, "Unexpected comma type:\n{}\n\n{}".format(repr(comma),
+                    unicode(comma).encode('utf-8'))
+                variable_index += 1
+        elif variables.type == tokens.NAME:
+            variable_name = variables.value
+            variable_by_name[variable_name] = parser.Variable(container = container, name = variable_name,
+                parser = parser)
+        else:
+            assert False, "Unexpected variables in for statement:\n{}\n\n{}".format(repr(node),
+                unicode(node).encode('utf-8'))
+        assert in_word.type == tokens.NAME and in_word.value == 'in'
+        iterator = parser.parse_value(iterator, container = container)
+        assert colon.type == tokens.COLON and colon.value == ':'
+
+        self = cls(container = container, iterator = iterator, parser = parser, variable_by_name = variable_by_name)
+        self.body = parser.parse_suite(body, container = container)
+
+        return self
 
 
 class Function(AbstractWrapper):
     body = None
+    keyword_name = None  # Name of "kwargs" in "**kwargs"
     name = None
     named_parameters = None  # Dictionary of parameter name => default value
     positional_parameters = None  # List of parameters names
     returns = None  # List of Return wrappers present in function
+    star_name = None  # Name of "args" in "*args"
     variable_by_name = None
 
-    def __init__(self, body = None, container = None, name = None, named_parameters = None, node = None, parser = None,
-            positional_parameters = None, returns = None, variable_by_name = None):
-        super(Function, self).__init__(container = container, node = node, parser = parser)
+    def __init__(self, body = None, container = None, guess = None, name = None, keyword_name = None,
+            named_parameters = None, node = None, parser = None, positional_parameters = None, returns = None,
+            star_name = None, variable_by_name = None):
+        super(Function, self).__init__(container = container, guess = guess, node = node, parser = parser)
         if body is None:
             body = []
         else:
             assert isinstance(body, list)
         self.body = body
+        if keyword_name is not None:
+            assert isinstance(keyword_name, basestring)
+            self.keyword_name = keyword_name
         assert isinstance(name, basestring)
         self.name = name
         if named_parameters is None:
@@ -595,11 +934,18 @@ class Function(AbstractWrapper):
         else:
             assert isinstance(returns, list)
         self.returns = returns
+        if star_name is not None:
+            assert isinstance(star_name, basestring)
+            self.star_name = star_name
         if variable_by_name is None:
             variable_by_name = collections.OrderedDict()
         else:
             assert isinstance(variable_by_name, collections.OrderedDict)
         self.variable_by_name = variable_by_name
+
+    @classmethod
+    def get_function_class(cls, parser = None):
+        return parser.Function
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -612,42 +958,8 @@ class Function(AbstractWrapper):
 
             self = cls(container = container, name = name, node = node, parser = parser)
             self.parse_parameters()
-
-            suite = children[4]
-            assert suite.type == symbols.suite
-            suite_children = suite.children
-            assert suite_children[0].type == tokens.NEWLINE and suite_children[0].value == '\n'
-            assert suite_children[1].type == tokens.INDENT
-            for suite_child in itertools.islice(suite_children, 2, None):
-                if suite_child.type == symbols.for_stmt:
-                    for_wrapper = parser.For.parse(suite_child, container = self, parser = parser)
-                    self.body.append(for_wrapper)
-                elif suite_child.type == symbols.funcdef:
-                    function = parser.Function.parse(suite_child, container = self, parser = parser)
-                    self.body.append(function)
-                    self.variable_by_name[function.name] = function
-                elif suite_child.type == symbols.if_stmt:
-                    if_wrapper = parser.If.parse(suite_child, container = self, parser = parser)
-                    self.body.append(if_wrapper)
-                elif suite_child.type == symbols.simple_stmt:
-                    assert len(suite_child.children) == 2, \
-                        "Unexpected length {} for simple statement in function definition:\n{}\n\n{}".format(
-                            len(suite_child.children), repr(suite_child), unicode(suite_child).encode('utf-8'))
-                    statement = suite_child.children[0]
-                    if statement.type == symbols.expr_stmt:
-                        assignment = parser.Assignment.parse(statement, container = self, parser = parser)
-                        self.body.append(assignment)
-                    elif statement.type == symbols.return_stmt:
-                        return_wrapper = parser.Return.parse(statement, container = self, parser = parser)
-                        self.body.append(return_wrapper)
-                    else:
-                        assert statement.type in (symbols.power, tokens.STRING), type_symbol(statement.type)
-                    assert suite_child.children[1].type == tokens.NEWLINE and suite_child.children[1].value == '\n'
-                elif suite_child.type == tokens.DEDENT:
-                    continue
-                else:
-                    assert False, "Unexpected statement in function definition:\n{}\n\n{}".format(repr(suite_child),
-                        unicode(suite_child).encode('utf-8'))
+            body = parser.parse_suite(children[4], container = self)
+            self.body[:] = body
             return self
         except:
             if node is not None:
@@ -696,28 +1008,13 @@ class Function(AbstractWrapper):
         typedargslist_child_index = 0
         while typedargslist_child_index < len(typedargslist_children):
             typedargslist_child = typedargslist_children[typedargslist_child_index]
-            assert typedargslist_child.type == tokens.NAME
-            parameter_name = typedargslist_child.value
-            typedargslist_child_index += 1
-            if typedargslist_child_index >= len(typedargslist_children):
-                # Last positional parameter
-                self.positional_parameters.append(parameter_name)
-                self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
-                    parser = parser)
-                break
-            typedargslist_child = typedargslist_children[typedargslist_child_index]
-            if typedargslist_child.type == tokens.COMMA:
-                # Positional parameter
-                self.positional_parameters.append(parameter_name)
-                self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
-                    parser = parser)
-                typedargslist_child_index += 1
-            elif typedargslist_child.type == tokens.EQUAL:
-                # Named parameter
+            if typedargslist_child.type == tokens.DOUBLESTAR:
                 typedargslist_child_index += 1
                 typedargslist_child = typedargslist_children[typedargslist_child_index]
-                self.named_parameters[parameter_name] = parser.parse_value(typedargslist_child, container = self)
-                self.variable_by_name[parameter_name] = parser.Variable(container = self, Name = parameter_name,
+                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                self.keyword_name = typedargslist_child.value
+                self.variable_by_name[self.keyword_name] = parser.Variable(container = self, name = self.keyword_name,
                     parser = parser)
                 typedargslist_child_index += 1
                 if typedargslist_child_index >= len(typedargslist_children):
@@ -725,6 +1022,51 @@ class Function(AbstractWrapper):
                 typedargslist_child = typedargslist_children[typedargslist_child_index]
                 assert typedargslist_child.type == tokens.COMMA
                 typedargslist_child_index += 1
+            elif typedargslist_child.type == tokens.STAR:
+                typedargslist_child_index += 1
+                typedargslist_child = typedargslist_children[typedargslist_child_index]
+                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                self.star_name = typedargslist_child.value
+                self.variable_by_name[self.star_name] = parser.Variable(container = self, name = self.star_name,
+                    parser = parser)
+                typedargslist_child_index += 1
+                if typedargslist_child_index >= len(typedargslist_children):
+                    break
+                typedargslist_child = typedargslist_children[typedargslist_child_index]
+                assert typedargslist_child.type == tokens.COMMA
+                typedargslist_child_index += 1
+            else:
+                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                parameter_name = typedargslist_child.value
+                typedargslist_child_index += 1
+                if typedargslist_child_index >= len(typedargslist_children):
+                    # Last positional parameter
+                    self.positional_parameters.append(parameter_name)
+                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                        parser = parser)
+                    break
+                typedargslist_child = typedargslist_children[typedargslist_child_index]
+                if typedargslist_child.type == tokens.COMMA:
+                    # Positional parameter
+                    self.positional_parameters.append(parameter_name)
+                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                        parser = parser)
+                    typedargslist_child_index += 1
+                elif typedargslist_child.type == tokens.EQUAL:
+                    # Named parameter
+                    typedargslist_child_index += 1
+                    typedargslist_child = typedargslist_children[typedargslist_child_index]
+                    self.named_parameters[parameter_name] = parser.parse_value(typedargslist_child, container = self)
+                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                        parser = parser)
+                    typedargslist_child_index += 1
+                    if typedargslist_child_index >= len(typedargslist_children):
+                        break
+                    typedargslist_child = typedargslist_children[typedargslist_child_index]
+                    assert typedargslist_child.type == tokens.COMMA
+                    typedargslist_child_index += 1
 
         assert parameters_children[2].type == tokens.RPAR and parameters_children[2].value == ')'
 
@@ -753,31 +1095,37 @@ class Function(AbstractWrapper):
 #         return variable
 
 
-# class FunctionFileInput(AbstractWrapper):
-#     @classmethod
-#     def get_function_class(cls, parser = None):
-#         return parser.Function
+class FunctionFileInput(AbstractWrapper):
+    @classmethod
+    def get_function_class(cls, parser = None):
+        return parser.Function
 
-#     @classmethod
-#     def parse(cls, function, parser = None):
-#         source_lines, line_number = inspect.getsourcelines(function)
-#         source = textwrap.dedent(''.join(source_lines))
-#         # print source
-#         node = parser.driver.parse_string(source)
-#         assert node.type == symbols.file_input, "Expected a node of type {}. Got:\n{}\n\n{}".format(
-#             type_symbol(symbols.file_input), repr(node), unicode(node).encode('utf-8'))
-#         children = node.children
-#         assert len(children) == 2 and children[0].type == symbols.funcdef and children[1].type == tokens.ENDMARKER, \
-#             "Unexpected node children in:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-#         module = parser.Module(node, python = inspect.getmodule(function), parser = parser)
-#         self = cls(parser = parser)
-#         function_class = cls.get_function_class(parser = parser)
-#         try:
-#             return function_class(children[0], container = module, parser = parser)
-#         except:
-#             if node is not None:
-#                 print "An exception occurred in node:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-#             raise
+    @classmethod
+    def parse(cls, function, parser = None):
+        source_lines, line_number = inspect.getsourcelines(function)
+        source = textwrap.dedent(''.join(source_lines))
+        # print source
+        node = parser.driver.parse_string(source)
+        assert node.type == symbols.file_input, "Unexpected file input type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 2 and children[0].type == symbols.funcdef and children[1].type == tokens.ENDMARKER, \
+            "Unexpected node children in:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+        python_module = inspect.getmodule(function)
+        assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
+            "Requested class is defined outside country_package:\n{}".format(source)
+        module = parser.python_module_by_name.get(python_module.__name__)
+        if module is None:
+            parser.python_module_by_name[python_module.__name__] = module = parser.Module(node, python = python_module,
+                parser = parser)
+        self = cls(parser = parser)
+        function_class = self.get_function_class(parser = parser)
+        try:
+            return function_class.parse(children[0], container = module, parser = parser)
+        except:
+            if node is not None:
+                print "An exception occurred in node:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            raise
 
 
 # class Holder(AbstractWrapper):
@@ -793,11 +1141,48 @@ class Function(AbstractWrapper):
 #         return self._guess if self._guess is not None else self
 
 
-# class If(AbstractWrapper):
-#     def __init__(self, node, container = None, parser = None):
-#         super(If, self).__init__(node, container = container, parser = parser)
+class If(AbstractWrapper):
+    items = None  # List of (test, body) couples
 
-#         # TODO: Parse and store attributes.
+    def __init__(self, container = None, guess = None, node = None, items = None, parser = None):
+        super(If, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(items, list)
+        self.items = items
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.if_stmt, "Unexpected if statement type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 4, "Unexpected length {} of children in if statement:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+
+        items = []
+        child_index = 0
+        while child_index < len(children):
+            reserved_word = children[child_index]
+            assert reserved_word.type == tokens.NAME and reserved_word.value in ('if', 'elif', 'else'), \
+                "Unexpected reserved word {}:\n{}\n\n{}".format(reserved_word.value, repr(node),
+                    unicode(node).encode('utf-8'))
+            child_index += 1
+
+            if reserved_word.value == 'else':
+                test = None
+            else:
+                test = parser.parse_value(children[child_index], container = container)
+                child_index += 1
+
+            colon = children[child_index]
+            assert colon.type == tokens.COLON and colon.value == ':', "Unexpected colon {}:\n{}\n\n{}".format(
+                colon.value, repr(node), unicode(node).encode('utf-8'))
+            child_index += 1
+
+            body = parser.parse_suite(children[child_index], container = container)
+            child_index += 1
+
+            items.append((test, body))
+
+        return cls(container = container, items = items, node = node, parser = parser)
 
 
 class Instant(AbstractWrapper):
@@ -810,11 +1195,11 @@ class Key(AbstractWrapper):
     subject = None
     value = None  # Value of the key
 
-    def __init__(self, container = None, node = None, parser = None, subject = None, value = None):
-        super(Key, self).__init__(container = container, node = node, parser = parser)
+    def __init__(self, container = None, guess = None, node = None, parser = None, subject = None, value = None):
+        super(Key, self).__init__(container = container, guess = guess, node = node, parser = parser)
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
-        assert isinstance(value, (basestring, int))
+        assert isinstance(value, AbstractWrapper)
         self.value = value
 
     @classmethod
@@ -833,8 +1218,71 @@ class Key(AbstractWrapper):
         return cls(container = container, node = node, parser = parser, subject = subject, value = value)
 
 
-# class Lambda(Function):
-#     pass
+class Lambda(AbstractWrapper):
+    expression = None
+    positional_parameters = None  # List of parameters names
+    variable_by_name = None
+
+    def __init__(self, container = None, expression = None, guess = None, node = None, parser = None,
+            positional_parameters = None, variable_by_name = None):
+        super(Lambda, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        if expression is not None:
+            assert isinstance(expression, AbstractWrapper)
+            self.expression = expression
+        if positional_parameters is None:
+            positional_parameters = []
+        else:
+            assert isinstance(positional_parameters, list)
+        self.positional_parameters = positional_parameters
+        if variable_by_name is None:
+            variable_by_name = collections.OrderedDict()
+        else:
+            assert isinstance(variable_by_name, collections.OrderedDict)
+        self.variable_by_name = variable_by_name
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.lambdef, "Unexpected lambda definition type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 4, "Unexpected length {} of children in lambda definition:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        lambda_word, parameters, colon, expression = children
+
+        self = cls(container = container, node = node, parser = parser)
+
+        assert lambda_word.type == tokens.NAME and lambda_word.value == 'lambda'
+        if parameters.type == tokens.NAME:
+            parameter_name = parameters.value
+            self.positional_parameters.append(parameter_name)
+            self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                parser = parser)
+        else:
+            assert False, "Unexpected parameters in lambda definition:\n{}\n\n{}".format(repr(node),
+                unicode(node).encode('utf-8'))
+        assert colon.type == tokens.COLON and colon.value == ':'
+        self.expression = parser.parse_value(expression, container = self)
+
+        return self
+
+    @property
+    def containing_function(self):
+        return self
+
+    def get_variable(self, name, default = UnboundLocalError, parser = None):
+        variable = self.variable_by_name.get(name, None)
+        if variable is None:
+            container = self.container
+            if container is not None:
+                return container.get_variable(name, default = default, parser = parser)
+            if default is UnboundLocalError:
+                raise KeyError("Undefined value for {}".format(name))
+            variable = default
+        return variable
+
+    @property
+    def guess(self):
+        return self._guess if self._guess is not None else self
 
 
 class LawNode(AbstractWrapper):
@@ -871,6 +1319,41 @@ class LawNode(AbstractWrapper):
         return '.'.join(self.iter_names())
 
 
+class List(AbstractWrapper):
+    value = None  # list value, as a list
+
+    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
+        super(List, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(value, list), "Unexpected value for list: {} of type {}".format(value,
+            type(value))
+        self.value = value
+
+    @property
+    def guess(self):
+        return self._guess if self._guess is not None else self
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.listmaker, "Unexpected list type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+
+        children = node.children
+        child_index = 0
+        items = []
+        while child_index < len(children):
+            child = children[child_index]
+            items.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            comma = children[child_index]
+            assert comma.type == tokens.COMMA, "Unexpected comma type:\n{}\n\n{}".format(repr(comma),
+                unicode(comma).encode('utf-8'))
+            child_index += 1
+
+        return cls(container = container, node = node, parser = parser, value = items)
+
+
 class Logger(AbstractWrapper):
     @property
     def guess(self):
@@ -890,28 +1373,52 @@ class Module(AbstractWrapper):
         if python is not None:
             # Python module
             self.python = python
-        self.variable_by_name = collections.OrderedDict(sorted(dict(
+        self.variable_by_name = collections.OrderedDict((
+            ("False", parser.Variable(container = self, name = u'False', parser = parser)),
+            ("None", parser.Variable(container = self, name = u'None', parser = parser)),
+            ("True", parser.Variable(container = self, name = u'True', parser = parser)),
+            ))
+        self.variable_by_name.update(sorted(dict(
+            and_ = parser.Variable(container = self, name = u'and_', parser = parser),
+            around = parser.Variable(container = self, name = u'around', parser = parser),
             CAT = parser.Variable(container = self, name = u'CAT', parser = parser,
                 value = parser.Enum(parser = parser, value = None)),  # TODO
+            ceil = parser.Variable(container = self, name = u'ceil', parser = parser),
             CHEF = parser.Variable(container = self, name = u'CHEF', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
+            combine_tax_scales = parser.Variable(container = self, name = u'combine_tax_scales', parser = parser),
             CONJ = parser.Variable(container = self, name = u'CONJ', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
             CREF = parser.Variable(container = self, name = u'CREF', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
-            date = parser.Function(container = self, name = u'date', parser = parser),
+            date = parser.Variable(container = self, name = u'date', parser = parser),
+            datetime64 = parser.Variable(container = self, name = u'datetime64', parser = parser),
             # ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser,
             #     value = parser.UniformList(parser = parser, value = parser.Number(parser = parser, value = x))),
+            ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser),
+            floor = parser.Variable(container = self, name = u'floor', parser = parser),
+            fsolve = parser.Variable(container = self, name = u'fsolve', parser = parser),
+            hasattr = parser.Variable(container = self, name = u'hasattr', parser = parser),
+            holidays = parser.Variable(container = self, name = u'holidays', parser = parser),
             int16 = parser.Variable(container = self, name = u'int16', parser = parser,
                 value = parser.Type(parser = parser, value = np.int16)),
             int32 = parser.Variable(container = self, name = u'int32', parser = parser,
                 value = parser.Type(parser = parser, value = np.int32)),
+            izip = parser.Variable(container = self, name = u'izip', parser = parser),
             law = parser.Variable(container = self, name = u'law', parser = parser,
                 value = parser.LawNode(parser = parser)),
+            len = parser.Variable(container = self, name = u'len', parser = parser),
             log = parser.Variable(container = self, name = u'log', parser = parser,
                 value = parser.Logger(parser = parser)),
-            max_ = parser.Function(container = self, name = u'max_', parser = parser),
-            min_ = parser.Function(container = self, name = u'min_', parser = parser),
+            MarginalRateTaxScale = parser.Variable(container = self, name = u'MarginalRateTaxScale', parser = parser),
+            max = parser.Variable(container = self, name = u'max', parser = parser),
+            max_ = parser.Variable(container = self, name = u'max_', parser = parser),
+            math = parser.Variable(container = self, name = u'math', parser = parser),
+            min_ = parser.Variable(container = self, name = u'min_', parser = parser),
+            not_ = parser.Variable(container = self, name = u'not_', parser = parser),
+            ones = parser.Variable(container = self, name = u'ones', parser = parser),
+            or_ = parser.Variable(container = self, name = u'or_', parser = parser),
+            original_busday_count = parser.Variable(container = self, name = u'original_busday_count', parser = parser),
             PAC1 = parser.Variable(container = self, name = u'PAC1', parser = parser,
                 value = parser.Number(parser = parser, value = 2)),
             PAC2 = parser.Variable(container = self, name = u'PAC2', parser = parser,
@@ -920,12 +1427,24 @@ class Module(AbstractWrapper):
                 value = parser.Number(parser = parser, value = 4)),
             PART = parser.Variable(container = self, name = u'PART', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
+            partial = parser.Variable(container = self, name = u'partial', parser = parser),
             PREF = parser.Variable(container = self, name = u'PREF', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
+            round = parser.Variable(container = self, name = u'round', parser = parser),
+            round_ = parser.Variable(container = self, name = u'round_', parser = parser),
+            scale_tax_scales = parser.Variable(container = self, name = u'scale_tax_scales', parser = parser),
+            SCOLARITE_COLLEGE = parser.Variable(container = self, name = u'SCOLARITE_COLLEGE', parser = parser,
+                value = parser.Number(parser = parser, value = 1)),
+            startswith = parser.Variable(container = self, name = u'startswith', parser = parser),
             TAUX_DE_PRIME = parser.Variable(container = self, name = u'TAUX_DE_PRIME', parser = parser,
                 value = parser.Number(parser = parser, value = 1 / 4)),
+            TaxScalesTree = parser.Variable(container = self, name = u'TaxScalesTree', parser = parser),
+            timedelta64 = parser.Variable(container = self, name = u'timedelta64', parser = parser),
             VOUS = parser.Variable(container = self, name = u'VOUS', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
+            where = parser.Variable(container = self, name = u'where', parser = parser),
+            xor_ = parser.Variable(container = self, name = u'xor_', parser = parser),
+            zeros = parser.Variable(container = self, name = u'zeros', parser = parser),
             ).iteritems()))
 
     @property
@@ -945,14 +1464,39 @@ class Module(AbstractWrapper):
                 if default is UnboundLocalError:
                     raise KeyError("Undefined value for {}".format(name))
                 return default
-            function = conv.check(parser.FunctionFileInput.parse)(value, parser)
+            # Declare function before parsing if to avoid infinite parsing when it is recursive.
             self.variable_by_name[name] = variable = parser.Variable(container = self, name = name,
-                parser = parser, value = function)
+                parser = parser)
+            function = parser.FunctionFileInput.parse(value, parser = parser)
+            assert isinstance(function, parser.Function), function
+            variable.value = function
         return variable
 
     @property
     def guess(self):
         return self._guess if self._guess is not None else self
+
+
+class Not(AbstractWrapper):
+    value = None
+
+    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
+        super(Not, self).__init__(container = container, guess = guess, node = node,
+            parser = parser)
+        assert isinstance(value, AbstractWrapper)
+        self.value = value
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.not_test, "Unexpected not test type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+
+        children = node.children
+        assert len(children) == 2, len(children)
+        assert children[0].type == tokens.NAME and children[0].value == 'not'
+        value = parser.parse_value(children[1], container = container)
+
+        return cls(container = container, node = node, parser = parser, value = value)
 
 
 class Number(AbstractWrapper):
@@ -973,6 +1517,16 @@ class Number(AbstractWrapper):
         assert node.type == tokens.NUMBER, "Unexpected number type:\n{}\n\n{}".format(repr(node),
             unicode(node).encode('utf-8'))
         return cls(container = container, node = node, parser = parser, value = node.value)
+
+
+class ParentheticalExpression(AbstractWrapper):
+    value = None
+
+    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
+        super(ParentheticalExpression, self).__init__(container = container, guess = guess, node = node,
+            parser = parser)
+        assert isinstance(value, AbstractWrapper)
+        self.value = value
 
 
 class Period(AbstractWrapper):
@@ -1025,7 +1579,7 @@ class String(AbstractWrapper):
             value = value.decode('utf-8')
         if value.startswith(u'u'):
             value = value[1:]
-        for delimiter in (u'"', u"'", u'"""', u"'''"):
+        for delimiter in (u'"""', u"'''", u'"', u"'"):
             if value.startswith(delimiter) and value.endswith(delimiter):
                 value = value[len(delimiter):-len(delimiter)]
                 break
@@ -1060,6 +1614,77 @@ class String(AbstractWrapper):
 #         return self._guess if self._guess is not None else self
 
 
+class Term(AbstractWrapper):
+    items = None
+
+    def __init__(self, container = None, guess = None, items = None, node = None, parser = None):
+        super(Term, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(items, list)
+        assert len(items) >= 3 and (len(items) & 1)
+        self.items = items
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.term, "Unexpected term type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 3 and (len(children) & 1), \
+            "Unexpected length {} of children in term:\n{}\n\n{}".format(len(children), repr(node),
+            unicode(node).encode('utf-8'))
+
+        child_index = 0
+        items = []
+        while child_index < len(children):
+            child = children[child_index]
+            items.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            operator = children[child_index]
+            assert operator.type in (
+                tokens.DOUBLESLASH,
+                tokens.SLASH,
+                tokens.STAR,
+                ), "Unexpected operator type:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            items.append(operator.value)
+            child_index += 1
+
+        return cls(container = container, items = items, node = node, parser = parser)
+
+
+class Test(AbstractWrapper):
+    false_value = None
+    test = None
+    true_value = None
+
+    def __init__(self, container = None, false_value = None, guess = None, node = None, parser = None, test = None,
+            true_value = None):
+        super(Test, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        assert isinstance(false_value, AbstractWrapper)
+        self.false_value = false_value
+        assert isinstance(test, AbstractWrapper)
+        self.test = test
+        assert isinstance(true_value, AbstractWrapper)
+        self.true_value = true_value
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.test, "Unexpected test statement type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 5, "Unexpected length {} of children in test statement:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        true_value, if_word, test, else_word, false_value = children
+        true_value = parser.parse_value(true_value, container = container)
+        assert if_word.type == tokens.NAME and if_word.value == 'if'
+        test = parser.parse_value(test, container = container)
+        assert else_word.type == tokens.NAME and else_word.value == 'else'
+        false_value = parser.parse_value(false_value, container = container)
+
+        return cls(container = container, false_value = false_value, node = node, parser = parser, test= test,
+            true_value = true_value)
+
+
 class Tuple(AbstractWrapper):
     value = None  # Tuple value, as a tuple
 
@@ -1078,18 +1703,19 @@ class Tuple(AbstractWrapper):
         assert node.type == symbols.testlist, "Unexpected tuple type:\n{}\n\n{}".format(repr(node),
             unicode(node).encode('utf-8'))
 
+        children = node.children
+        child_index = 0
         items = []
-        item_index = 0
-        while item_index < len(items):
-            item = items[item_index]
-            items.append(parser.parse_value(item, container = container))
-            item_index += 1
-            if item_index >= len(items):
+        while child_index < len(children):
+            child = children[child_index]
+            items.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
                 break
-            comma = items[item_index]
+            comma = children[child_index]
             assert comma.type == tokens.COMMA, "Unexpected comma type:\n{}\n\n{}".format(repr(comma),
                 unicode(comma).encode('utf-8'))
-            item_index += 1
+            child_index += 1
 
         return cls(container = container, node = node, parser = parser, value = tuple(items))
 
@@ -1219,15 +1845,20 @@ class FormulaFunction(Function):
 
 
 class Parser(conv.State):
-    column = None  # Formula column
+    AndExpression = AndExpression
     # Array = Array
     # ArrayLength = ArrayLength
+    ArithmeticExpression = ArithmeticExpression
+    Assert = Assert
     Assignment = Assignment
     Attribute = Attribute
     Call = Call
     Class = Class
     ClassFileInput = ClassFileInput
-    # Continue = Continue
+    column = None  # Formula column
+    Comparison = Comparison
+    Continue = Continue
+    country_package = None
     Date = Date
     # DateTime64 = DateTime64
     # DatedHolder = DatedHolder
@@ -1236,7 +1867,9 @@ class Parser(conv.State):
     # Entity = Entity
     # EntityToEntity = EntityToEntity
     Enum = Enum
-    # For = For
+    Expression = Expression
+    Factor = Factor
+    For = For
     Formula = Formula
     FormulaClass = FormulaClass
     FormulaClassFileInput = FormulaClassFileInput
@@ -1244,24 +1877,30 @@ class Parser(conv.State):
     # FormulaFunctionFileInput = FormulaFunctionFileInput
     Function = Function
     # FunctionCall = FunctionCall
-    # FunctionFileInput = FunctionFileInput
+    FunctionFileInput = FunctionFileInput
     # Holder = Holder
-    # If = If
+    If = If
     Instant = Instant
     Key = Key
-    # Lambda = Lambda
+    Lambda = Lambda
     LawNode = LawNode
+    List = List
     Logger = Logger
     # Math = Math
     Module = Module
+    Not = Not
     Number = Number
+    ParentheticalExpression = ParentheticalExpression
     Period = Period
+    python_module_by_name = None
     Return = Return
     Simulation = Simulation
     String = String
     # Structure = Structure
     tax_benefit_system = None
     # TaxScalesTree = TaxScalesTree
+    Term = Term
+    Test = Test
     Tuple = Tuple
     Type = Type
     # UniformDictionary = UniformDictionary
@@ -1269,8 +1908,10 @@ class Parser(conv.State):
     # UniformList = UniformList
     Variable = Variable
 
-    def __init__(self, driver = None, tax_benefit_system = None):
+    def __init__(self, country_package = None, driver = None, tax_benefit_system = None):
+        self.country_package = country_package
         self.driver = driver
+        self.python_module_by_name = {}
         self.tax_benefit_system = tax_benefit_system
 
     def parse_power(self, node, container = None):
@@ -1284,11 +1925,7 @@ class Parser(conv.State):
         children = node.children
         assert len(children) >= 2, "Unexpected length {} of children in power:\n{}\n\n{}".format(
             len(children), repr(node), unicode(node).encode('utf-8'))
-        header = children[0]
-        assert header.type == tokens.NAME, "Unexpected header type:\n{}\n\n{}".format(repr(header),
-            unicode(header).encode('utf-8'))
-        subject = container.get_variable(header.value, default = None, parser = self)
-        assert subject is not None, "Undefined variable: {}".format(header.value)
+        subject = self.parse_value(children[0], container = container)
         for trailer in itertools.islice(children, 1, None):
             assert trailer.type == symbols.trailer, "Unexpected trailer type:\n{}\n\n{}".format(repr(trailer),
                 unicode(trailer).encode('utf-8'))
@@ -1314,63 +1951,143 @@ class Parser(conv.State):
                 subject = self.Key.parse(subject, trailer, container = container, parser = self)
         return subject
 
+    def parse_suite(self, node, container = None):
+        assert isinstance(node, lib2to3.pytree.Base), "Invalid node:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        assert isinstance(container, AbstractWrapper), "Invalid container {} for node:\n{}\n\n{}".format(container,
+            repr(node), unicode(node).encode('utf-8'))
+
+        if node.type == symbols.suite:
+            children = node.children
+        else:
+            children = [node]  # Suite is only a single statement.
+        body = []
+        for child in children:
+            if child.type == symbols.for_stmt:
+                for_wrapper = self.For.parse(child, container = container, parser = self)
+                body.append(for_wrapper)
+            elif child.type == symbols.funcdef:
+                function = container.get_function_class(parser = self).parse(child, container = container,
+                    parser = self)
+                body.append(function)
+                container.variable_by_name[function.name] = function
+            elif child.type == symbols.funcdef:
+                function = self.Function.parse(child, container = container, parser = self)
+                body.append(function)
+                container.variable_by_name[function.name] = function
+            elif child.type == symbols.if_stmt:
+                if_wrapper = self.If.parse(child, container = container, parser = self)
+                body.append(if_wrapper)
+            elif child.type == symbols.simple_stmt:
+                assert len(child.children) == 2, \
+                    "Unexpected length {} for simple statement in function definition:\n{}\n\n{}".format(
+                        len(child.children), repr(child), unicode(child).encode('utf-8'))
+                statement = child.children[0]
+                if statement.type == symbols.assert_stmt:
+                    assert_statement = self.Assert.parse(statement, container = container, parser = self)
+                    body.append(assert_statement)
+                elif statement.type == symbols.expr_stmt:
+                    assignment = self.Assignment.parse(statement, container = container, parser = self)
+                    body.append(assignment)
+                elif statement.type == symbols.power:
+                    power = self.parse_power(statement, container = container)
+                    body.append(power)
+                elif statement.type == symbols.return_stmt:
+                    return_wrapper = self.Return.parse(statement, container = container, parser = self)
+                    body.append(return_wrapper)
+                elif statement.type == tokens.NAME and statement.value == 'continue':
+                    continue_statement = self.Continue(container = container, node = statement, parser = self)
+                    body.append(continue_statement)
+                elif statement.type == tokens.STRING:
+                    # Docstring
+                    string = self.String.parse(statement, container = container, parser = self)
+                    body.append(string)
+                else:
+                    assert False, "Unexpected simple statement in suite:\n{}\n\n{}".format(repr(child),
+                        unicode(child).encode('utf-8'))
+                assert child.children[1].type == tokens.NEWLINE and child.children[1].value == '\n'
+            elif child.type in (tokens.DEDENT, tokens.INDENT, tokens.NEWLINE):
+                continue
+            else:
+                assert False, "Unexpected statement in suite:\n{}\n\n{}".format(repr(child),
+                    unicode(child).encode('utf-8'))
+        return body
+
     def parse_value(self, node, container = None):
         assert isinstance(node, lib2to3.pytree.Base), "Invalid node:\n{}\n\n{}".format(repr(node),
             unicode(node).encode('utf-8'))
         assert isinstance(container, AbstractWrapper), "Invalid container {} for node:\n{}\n\n{}".format(container,
             repr(node), unicode(node).encode('utf-8'))
 
-        children = node.children
         if node.type == symbols.and_expr:
-            assert len(children) >= 3 and (len(children) & 1), \
-                "Unexpected length {} of children in and_expr:\n{}\n\n{}".format(len(children), repr(node),
-                unicode(node).encode('utf-8'))
-            return None  # TODO
+            return self.AndExpression.parse(node, container = container, parser = self)
+
         if node.type == symbols.arith_expr:
-            assert len(children) >= 3 and (len(children) & 1), \
-                "Unexpected length {} of children in arith_expr:\n{}\n\n{}".format(len(children), repr(node),
-                unicode(node).encode('utf-8'))
-            return None  # TODO
+            return self.ArithmeticExpression.parse(node, container = container, parser = self)
+
         if node.type == symbols.atom:
-            assert len(children) == 3, "Unexpected length {} of children in atom:\n{}\n\n{}".format(
-                len(children), repr(node), unicode(node).encode('utf-8'))
-            return None  # TODO
-        if node.type == symbols.comparison:
-            assert len(children) == 3, "Unexpected length {} of children in comparison:\n{}\n\n{}".format(
-                len(children), repr(node), unicode(node).encode('utf-8'))
-            return None  # TODO
-        if node.type == symbols.expr:
-            assert len(children) >= 3 and (len(children) & 1), \
-                "Unexpected length {} of children in expr:\n{}\n\n{}".format(len(children), repr(node),
+            assert node.type == symbols.atom, "Unexpected atom type:\n{}\n\n{}".format(repr(node),
                 unicode(node).encode('utf-8'))
-            return None  # TODO
-        if node.type == symbols.factor:
-            assert len(children) == 2, "Unexpected length {} of children in factor:\n{}\n\n{}".format(len(children),
+            children = node.children
+            assert len(children) == 3, "Unexpected length {} of children in atom:\n{}\n\n{}".format(len(children),
                 repr(node), unicode(node).encode('utf-8'))
-            return None  # TODO
+            left_parenthesis, value, right_parenthesis = children
+            assert left_parenthesis.type in (tokens.LPAR, tokens.LSQB), \
+                "Unexpected left parenthesis {} in atom:\n{}\n\n{}".format(left_parenthesis.value, repr(node),
+                    unicode(node).encode('utf-8'))
+            assert right_parenthesis.type in (tokens.RPAR, tokens.RSQB), \
+                "Unexpected right parenthesis {} in atom:\n{}\n\n{}".format(right_parenthesis.value, repr(node),
+                    unicode(node).encode('utf-8'))
+            if left_parenthesis.type == tokens.LPAR:
+                value = self.parse_value(value, container = container)
+                return self.ParentheticalExpression(container = container, node = node, parser = self, value = value)
+            return self.List.parse(value, container = container, parser = self)
+
+        if node.type == symbols.comparison:
+            return self.Comparison.parse(node, container = container, parser = self)
+
+        if node.type == symbols.expr:
+            return self.Expression.parse(node, container = container, parser = self)
+
+        if node.type == symbols.factor:
+            return self.Factor.parse(node, container = container, parser = self)
+
+        if node.type == symbols.lambdef:
+            return self.Lambda.parse(node, container = container, parser = self)
+
+        if node.type == symbols.not_test:
+            return self.Not.parse(node, container = container, parser = self)
+
         if node.type == symbols.power:
             return self.parse_power(node, container = container)
+
         if node.type == symbols.term:
-            assert len(children) >= 3 and (len(children) & 1), \
-                "Unexpected length {} of children in term:\n{}\n\n{}".format(len(children), repr(node),
-                unicode(node).encode('utf-8'))
-            return None  # TODO
+            return self.Term.parse(node, container = container, parser = self)
+
         if node.type == symbols.test:
-            assert len(children) == 5, "Unexpected length {} of children in test:\n{}\n\n{}".format(
-                len(children), repr(node), unicode(node).encode('utf-8'))
-            assert children[1].type == tokens.NAME and children[1].value == 'if', \
-                "Unexpected non-if token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-            assert children[3].type == tokens.NAME and children[3].value == 'else', \
-                "Unexpected non-else token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-            return None  # TODO
+            return self.Test.parse(node, container = container, parser = self)
+
+        # if node.type == symbols.test:
+        #     assert len(children) == 5, "Unexpected length {} of children in test:\n{}\n\n{}".format(
+        #         len(children), repr(node), unicode(node).encode('utf-8'))
+        #     assert children[1].type == tokens.NAME and children[1].value == 'if', \
+        #         "Unexpected non-if token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+        #     assert children[3].type == tokens.NAME and children[3].value == 'else', \
+        #         "Unexpected non-else token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+        #     return None  # TODO
+
         if node.type == symbols.testlist:
             return self.Tuple.parse(node, container = container, parser = self)
+
         if node.type == tokens.NAME:
             variable = container.get_variable(node.value, default = None, parser = self)
             assert variable is not None, "Undefined variable: {}".format(node.value)
             return variable
+
         if node.type == tokens.NUMBER:
             return self.Number.parse(node, container = container, parser = self)
+
         if node.type == tokens.STRING:
             return self.String.parse(node, container = container, parser = self)
+
         assert False, "Unexpected value:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
