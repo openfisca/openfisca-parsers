@@ -882,6 +882,7 @@ class Parser(formulas_parsers_2to3.Parser):
     Assignment = Assignment
     Attribute = Attribute
     Call = Call
+    Class = Class
     Comparison = Comparison
     Continue = Continue
     Expression = Expression
