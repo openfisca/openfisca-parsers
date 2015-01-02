@@ -131,6 +131,7 @@ class Assert(formulas_parsers_2to3.Assert):
 
 class Assignment(formulas_parsers_2to3.Assignment):
     def juliaize(self):
+        container = self.container
         parser = self.parser
         left = []
         for left_item in self.left:
@@ -152,7 +153,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
             ]
         if len(left) == 1:
             variable = left[0]
-            if isinstance(left, parser.Variable) and isinstance(variable.value, parser.Call):
+            if isinstance(variable, parser.Variable) and isinstance(variable.value, parser.Call):
                 call = variable.value
                 call_subject = call.subject
                 if isinstance(call_subject, parser.Attribute):
@@ -164,25 +165,50 @@ class Assignment(formulas_parsers_2to3.Assignment):
                             assert len(call.named_arguments) == 0, call.named_arguments
                             requested_variable_string = call.positional_arguments[0]
                             if isinstance(requested_variable_string, parser.String):
-                                assert requested_variable_string.value == variable.name, str((variable.name,
-                                    requested_variable_string.value))
-                                return parser.Call(
-                                    container = self.container,
-                                    # guess = parser.ArrayHandle(parser = parser),  TODO
-                                    parser = parser,
-                                    positional_arguments = [Variable(
-                                        container = self.container,
+                                if requested_variable_string.value == variable.name:
+                                    # @calculate(x, ...)
+                                    return parser.Call(
+                                        container = container,
                                         # guess = parser.ArrayHandle(parser = parser),  TODO
-                                        name = variable.name,
                                         parser = parser,
-                                        )] + call.positional_arguments[1:],
-                                    subject = parser.Variable(  # TODO: Use Macro or MacroCall.
-                                        name = u'@calculate',
-                                        parser = parser,
-                                        ),
+                                        positional_arguments = [parser.Variable(
+                                            container = container,
+                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            name = requested_variable_string.value,
+                                            parser = parser,
+                                            )] + call.positional_arguments[1:],
+                                        subject = parser.Variable(  # TODO: Use Macro or MacroCall.
+                                            name = u'@calculate',
+                                            parser = parser,
+                                            ),
+                                        )
+                                # y = calculate("x", ...)
+                                return parser.Assignment(
+                                    container = container,
+                                    left = [
+                                        parser.Variable(container = container, name = variable.name, parser = parser),
+                                        ],
+                                    operator = u'=',
+                                    parser = parser,
+                                    right = [
+                                        parser.Call(
+                                            container = container,
+                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            parser = parser,
+                                            positional_arguments = [parser.String(
+                                                container = container,
+                                                parser = parser,
+                                                value = requested_variable_string.value,
+                                                )] + call.positional_arguments[1:],
+                                            subject = parser.Variable(  # TODO: Use function call.
+                                                name = u'calculate',
+                                                parser = parser,
+                                                ),
+                                            ),
+                                        ],
                                     )
         return self.__class__(
-            container = self.container,
+            container = container,
             guess = self._guess,
             left = left,
             operator = self.operator,
@@ -419,7 +445,7 @@ class For(formulas_parsers_2to3.For):
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
-                    ),
+                    ).juliaize(),
                 )
             for name, variable in self.variable_by_name.iteritems()
             )
@@ -462,7 +488,7 @@ class Function(formulas_parsers_2to3.Function):
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
-                    ) if isinstance(variable, parser.Variable) else variable.juliaize(),
+                    ).juliaize(),
                 )
             for name, variable in self.variable_by_name.iteritems()
             )
@@ -612,7 +638,7 @@ class Lambda(formulas_parsers_2to3.Lambda):
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
-                    ),
+                    ).juliaize(),
                 )
             for name, variable in self.variable_by_name.iteritems()
             )
@@ -801,18 +827,19 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
     def source_julia(self, depth = 0):
         parser = self.parser
         statements = None
-        for formula in self.variable_by_name.itervalues():
-            if isinstance(formula, parser.FormulaFunction):
+        for variable in self.variable_by_name.itervalues():
+            if isinstance(variable.value, parser.FormulaFunction):
                 # Simple formula
-                statements = formula.juliaize().source_julia_statements(depth = depth + 1)
+                statements = variable.value.juliaize().source_julia_statements(depth = depth + 1)
                 break
         else:
             # Dated formula
             dated_functions_decorator = [
-                decorator
-                for decorator in self.variable_by_name.itervalues()
-                if isinstance(decorator, parser.Decorator) and decorator.name == 'dated_function'
+                variable.value
+                for variable in self.variable_by_name.itervalues()
+                if isinstance(variable.value, parser.Decorator) and variable.name == 'dated_function'
                 ]
+            assert dated_functions_decorator
             statements_blocks = []
             for decorator in dated_functions_decorator:
                 call = decorator.subject

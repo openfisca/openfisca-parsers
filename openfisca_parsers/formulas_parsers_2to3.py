@@ -528,11 +528,13 @@ class Class(AbstractWrapper):
             for suite_child in itertools.islice(suite_children, 2, None):
                 if suite_child.type == symbols.decorated:
                     decorator = parser.Decorator.parse(suite_child, container = self, parser = parser)
-                    variable_by_name[decorator.decorated.name] = decorator
+                    variable_by_name[decorator.decorated.name] = parser.Variable(container = self,
+                        name = decorator.name, parser = parser, value = decorator)
                 elif suite_child.type == symbols.funcdef:
                     function = cls.get_function_class(parser = parser).parse(suite_child, container = self,
                         parser = parser)
-                    variable_by_name[function.name] = function
+                    variable_by_name[function.name] = parser.Variable(container = self, name = function.name,
+                        parser = parser, value = function)
                 elif suite_child.type == symbols.simple_stmt:
                     assert len(suite_child.children) == 2, len(suite_child.children)
                     expression = suite_child.children[0]
@@ -1573,8 +1575,15 @@ class String(AbstractWrapper):
 
     def __init__(self, container = None, node = None, parser = None, value = None):
         super(String, self).__init__(container = container, node = node, parser = parser)
-        assert isinstance(value, basestring), "Unexpected value for string: {} of type {}".format(value,
+        assert isinstance(value, unicode), "Unexpected value for string: {} of type {}".format(value,
             type(value))
+        self.value = value
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == tokens.STRING, "Unexpected string type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        value = node.value
         if isinstance(value, str):
             value = value.decode('utf-8')
         if value.startswith(u'u'):
@@ -1585,13 +1594,7 @@ class String(AbstractWrapper):
                 break
         else:
             assert False, "Unknow delimiters for: {}".format(value)
-        self.value = value
-
-    @classmethod
-    def parse(cls, node, container = None, parser = None):
-        assert node.type == tokens.STRING, "Unexpected string type:\n{}\n\n{}".format(repr(node),
-            unicode(node).encode('utf-8'))
-        return cls(container = container, node = node, parser = parser, value = node.value)
+        return cls(container = container, node = node, parser = parser, value = value)
 
 
 # class Structure(AbstractWrapper):
@@ -1970,11 +1973,8 @@ class Parser(conv.State):
                 function = container.get_function_class(parser = self).parse(child, container = container,
                     parser = self)
                 body.append(function)
-                container.variable_by_name[function.name] = function
-            elif child.type == symbols.funcdef:
-                function = self.Function.parse(child, container = container, parser = self)
-                body.append(function)
-                container.variable_by_name[function.name] = function
+                container.variable_by_name[function.name] = self.Variable(container = container, name = function.name,
+                    parser = self, value = function)
             elif child.type == symbols.if_stmt:
                 if_wrapper = self.If.parse(child, container = container, parser = self)
                 body.append(if_wrapper)
