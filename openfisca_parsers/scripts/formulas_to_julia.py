@@ -446,8 +446,62 @@ class FormulaClass(formulas_parsers_2to3.FormulaClass):
         statements = None
         for formula in self.variable_by_name.itervalues():
             if isinstance(formula, parser.FormulaFunction):
+                # Simple formula
                 statements = formula.juliaize().source_julia_statements(depth = depth + 1)
                 break
+        else:
+            # Dated formula
+            dated_functions_decorator = [
+                decorator
+                for decorator in self.variable_by_name.itervalues()
+                if isinstance(decorator, parser.Decorator) and decorator.name == 'dated_function'
+                ]
+            statements_blocks = []
+            for decorator in dated_functions_decorator:
+                call = decorator.subject
+                assert isinstance(call, parser.Call)
+                assert call.keyword_argument is None
+                assert call.star_argument is None
+                start_date = call.positional_arguments[0] \
+                    if len(call.positional_arguments) >= 1 \
+                    else call.named_arguments.get('start')
+                stop_date = call.positional_arguments[1] \
+                    if len(call.positional_arguments) >= 2 \
+                    else call.named_arguments.get('stop')
+                assert start_date is not None or stop_date is not None
+                if start_date is None:
+                    test = u'{optional_else}if period.start <= {stop_date}'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
+                        )
+                elif stop_date is None:
+                    test = u'{optional_else}if {start_date} <= period.start'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
+                        )
+                else:
+                    test = u'{optional_else}if {start_date} <= period.start && period.start <= {stop_date}'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
+                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
+                        )
+
+                function = decorator.decorated
+                assert isinstance(function, parser.FormulaFunction)
+                statements_blocks.append(u"{indent}  {test}\n{statements}".format(
+                    indent = u'  ' * depth,
+                    statements = function.juliaize().source_julia_statements(depth = depth + 2),
+                    test = test,
+                    ))
+            statements_blocks.append(textwrap.dedent(u"""\
+                {indent}  else
+                {indent}    return period, default_array(variable)
+                {indent}  end
+                """).format(
+                indent = u'  ' * depth,
+                ))
+            statements = u''.join(statements_blocks)
+
         return textwrap.dedent(u"""
             {call} do simulation, variable, period
             {statements}end
