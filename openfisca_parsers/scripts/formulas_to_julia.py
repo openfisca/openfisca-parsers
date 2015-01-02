@@ -142,7 +142,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                     name = left_item.name,
                     parser = parser,
                     value = left_item.value.juliaize(),
-                    ))
+                    ).juliaize())
             else:
                 left.append(left_item.juliaize())
             left_item = left_item.juliaize()
@@ -224,7 +224,7 @@ class Call(formulas_parsers_2to3.Call):
         parser = self.parser
         keyword_argument = self.keyword_argument.juliaize() if self.keyword_argument is not None else None
         named_arguments = collections.OrderedDict(
-            (argument_name, argument_value.juliaize())
+            (parser.juliaize_name(argument_name), argument_value.juliaize())
             for argument_name, argument_value in self.named_arguments.iteritems()
             )
         positional_arguments = [
@@ -788,7 +788,7 @@ class Variable(formulas_parsers_2to3.Variable):
         return self  # Conversion of variable to Julia is done only once, during assignment.
 
     def source_julia(self, depth = 0):
-        return self.name
+        return self.parser.juliaize_name(self.name)
 
 
 # Formula-specific classes
@@ -914,6 +914,11 @@ class Parser(formulas_parsers_2to3.Parser):
         super(Parser, self).__init__(country_package = country_package, driver = driver,
             tax_benefit_system = tax_benefit_system)
         self.non_formula_function_by_name = collections.OrderedDict()
+
+    def juliaize_name(self, name):
+        if name == u'function':
+            name = u'func'
+        return name
 
     def source_julia_column_without_function(self):
         column = self.column
