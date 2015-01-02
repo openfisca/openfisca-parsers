@@ -1290,9 +1290,6 @@ def main():
         assert module_name.startswith('openfisca_france.model.')
         module_name = module_name[len('openfisca_france.model.'):]
         julia_source_by_name_by_module_name.setdefault(module_name, {})[function_wrapper.name] = julia_source
-        print module_name
-        print julia_source
-        print
 
     julia_path = os.path.join(args.julia_package_dir, 'src', 'input_variables.jl')
     with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
