@@ -2067,15 +2067,6 @@ class Parser(conv.State):
         if node.type == symbols.test:
             return self.Test.parse(node, container = container, parser = self)
 
-        # if node.type == symbols.test:
-        #     assert len(children) == 5, "Unexpected length {} of children in test:\n{}\n\n{}".format(
-        #         len(children), repr(node), unicode(node).encode('utf-8'))
-        #     assert children[1].type == tokens.NAME and children[1].value == 'if', \
-        #         "Unexpected non-if token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-        #     assert children[3].type == tokens.NAME and children[3].value == 'else', \
-        #         "Unexpected non-else token in test:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-        #     return None  # TODO
-
         if node.type == symbols.testlist:
             return self.Tuple.parse(node, container = container, parser = self)
 
