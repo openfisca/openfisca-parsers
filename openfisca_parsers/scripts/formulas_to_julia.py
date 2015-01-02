@@ -1300,6 +1300,13 @@ def main():
             julia_file.write(input_variable_definition_julia_source)
             julia_file.write(u'\n')
 
+    julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas.jl')
+    with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
+        julia_file.write(julia_file_header)
+        julia_file.write(u'\n\n')
+        for module_name in sorted(julia_source_by_name_by_module_name.iterkeys()):
+            julia_file.write(u'include("{}.jl")\n'.format(module_name.replace(u'.', u'/')))
+
     for module_name, julia_source_by_name in julia_source_by_name_by_module_name.iteritems():
         julia_relative_path = os.path.join(*module_name.split('.')) + '.jl'
         julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas', julia_relative_path)
