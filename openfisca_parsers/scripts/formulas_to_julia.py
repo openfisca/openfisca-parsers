@@ -1271,7 +1271,7 @@ def main():
 
     for module_name, julia_str_by_name in output_variable_definition_julia_str_by_name_by_module_name.iteritems():
         julia_relative_path = os.path.join(*module_name.split('.')) + '.jl'
-        julia_path = os.path.join(args.julia_package_dir, 'src', julia_relative_path)
+        julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas', julia_relative_path)
         julia_dir = os.path.dirname(julia_path)
         if not os.path.exists(julia_dir):
             os.makedirs(julia_dir)
