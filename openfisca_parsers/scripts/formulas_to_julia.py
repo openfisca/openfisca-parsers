@@ -438,7 +438,7 @@ class For(formulas_parsers_2to3.For):
 
     def source_julia(self, depth = 0):
         variables_name = list(self.variable_by_name.iterkeys())
-        return u'\n{indent}for {variables} in {iterator}\n{body}{indent}end\n'.format(
+        return u'for {variables} in {iterator}\n{body}{indent}end'.format(
             body = u''.join(
                 u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
                 for statement in self.body
