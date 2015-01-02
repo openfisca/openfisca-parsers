@@ -426,6 +426,7 @@ class For(formulas_parsers_2to3.For):
             )
 
     def source_julia(self, depth = 0):
+        variables_name = list(self.variable_by_name.iterkeys())
         return u'\n{indent}for {variables} in {iterator}\n{body}{indent}end\n'.format(
             body = u''.join(
                 u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
@@ -433,7 +434,7 @@ class For(formulas_parsers_2to3.For):
                 ),
             indent = u'  ' * depth,
             iterator = self.iterator.source_julia(depth = depth + 1),
-            variables = u', '.join(self.variable_by_name.iterkeys()),
+            variables = u'({})'.format(u', '.join(variables_name)) if len(variables_name) > 1 else variables_name[0],
             )
 
 
