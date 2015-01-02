@@ -353,7 +353,14 @@ class Comparison(formulas_parsers_2to3.Comparison):
             )
 
     def source_julia(self, depth = 0):
-        return u'{} {} {}'.format(self.left.source_julia(depth = depth), self.operator,
+        operator = self.operator
+        if operator == u'not in':
+            return u'!({} in {})'.format(self.left.source_julia(depth = depth), self.right.source_julia(depth = depth))
+        if operator == u'is':
+            operator = u'==='
+        elif operator == u'is not':
+            operator = u'!=='
+        return u'{} {} {}'.format(self.left.source_julia(depth = depth), operator,
             self.right.source_julia(depth = depth))
 
 
