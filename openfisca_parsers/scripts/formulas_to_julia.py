@@ -337,6 +337,10 @@ class Call(formulas_parsers_2to3.Call):
             )
 
 
+class Class(formulas_parsers_2to3.Class):
+    pass
+
+
 class Comparison(formulas_parsers_2to3.Comparison):
     def juliaize(self):
         return self.__class__(
@@ -438,91 +442,6 @@ class For(formulas_parsers_2to3.For):
             )
 
 
-class FormulaClass(formulas_parsers_2to3.FormulaClass):
-    def juliaize(self):
-        return self
-
-    def source_julia(self, depth = 0):
-        parser = self.parser
-        statements = None
-        for formula in self.variable_by_name.itervalues():
-            if isinstance(formula, parser.FormulaFunction):
-                # Simple formula
-                statements = formula.juliaize().source_julia_statements(depth = depth + 1)
-                break
-        else:
-            # Dated formula
-            dated_functions_decorator = [
-                decorator
-                for decorator in self.variable_by_name.itervalues()
-                if isinstance(decorator, parser.Decorator) and decorator.name == 'dated_function'
-                ]
-            statements_blocks = []
-            for decorator in dated_functions_decorator:
-                call = decorator.subject
-                assert isinstance(call, parser.Call)
-                assert call.keyword_argument is None
-                assert call.star_argument is None
-                start_date = call.positional_arguments[0] \
-                    if len(call.positional_arguments) >= 1 \
-                    else call.named_arguments.get('start')
-                stop_date = call.positional_arguments[1] \
-                    if len(call.positional_arguments) >= 2 \
-                    else call.named_arguments.get('stop')
-                assert start_date is not None or stop_date is not None
-                if start_date is None:
-                    test = u'{optional_else}if period.start <= {stop_date}'.format(
-                        optional_else = u'else' if statements_blocks else u'',
-                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
-                        )
-                elif stop_date is None:
-                    test = u'{optional_else}if {start_date} <= period.start'.format(
-                        optional_else = u'else' if statements_blocks else u'',
-                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
-                        )
-                else:
-                    test = u'{optional_else}if {start_date} <= period.start && period.start <= {stop_date}'.format(
-                        optional_else = u'else' if statements_blocks else u'',
-                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
-                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
-                        )
-
-                function = decorator.decorated
-                assert isinstance(function, parser.FormulaFunction)
-                statements_blocks.append(u"{indent}  {test}\n{statements}".format(
-                    indent = u'  ' * depth,
-                    statements = function.juliaize().source_julia_statements(depth = depth + 2),
-                    test = test,
-                    ))
-            statements_blocks.append(textwrap.dedent(u"""\
-                {indent}  else
-                {indent}    return period, default_array(variable)
-                {indent}  end
-                """).format(
-                indent = u'  ' * depth,
-                ))
-            statements = u''.join(statements_blocks)
-
-        return textwrap.dedent(u"""
-            {call} do simulation, variable, period
-            {statements}end
-            """).format(
-            call = parser.source_julia_column_without_function(),
-            statements = statements or u'',
-            )
-
-
-class FormulaFunction(formulas_parsers_2to3.FormulaFunction):
-    def juliaize(self):
-        return self
-
-    def source_julia_statements(self, depth = 0):
-        return u''.join(
-            u'{}{}\n'.format(u'  ' * depth, statement.juliaize().source_julia(depth = depth))
-            for statement in self.body
-            )
-
-
 class Function(formulas_parsers_2to3.Function):
     def juliaize(self):
         parser = self.parser
@@ -562,27 +481,53 @@ class Function(formulas_parsers_2to3.Function):
             )
 
     def source_julia(self, depth = 0):
-        parameters = []
+        positional_parameters = []
         if self.positional_parameters:
-            parameters.extend(self.positional_parameters)
+            positional_parameters.extend(self.positional_parameters)
         if self.star_name:
-            parameters.append(u'*{}'.format(self.star_name))
+            positional_parameters.append(u'{}...'.format(self.star_name))
+        named_parameters = []
         if self.named_parameters:
-            parameters.extend(
+            named_parameters.extend(
                 '{} = {}'.format(name, value.source_julia(depth = depth + 2))
                 for name, value in self.named_parameters.iteritems()
                 )
         if self.keyword_name:
-            parameters.append(u'**{}'.format(self.keyword_name))
-        return u'\n{indent}function {name}({parameters})\n{body}{indent}end\n'.format(
-            body = u''.join(
-                u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
-                for statement in self.body
-                ),
+            named_parameters.append(u'{}...'.format(self.keyword_name))
+        return u'\n{indent}function {name}({positional_parameters}{named_parameters})\n{body}{indent}end\n'.format(
+            body = self.source_julia_statements(depth = depth + 1),
             indent = u'  ' * depth,
             name = self.name,
-            parameters = u', '.join(parameters),
+            named_parameters = u'; {}'.format(u', '.join(named_parameters)),
+            positional_parameters = u', '.join(positional_parameters),
             )
+
+    def source_julia_statements(self, depth = 0):
+        parser = self.parser
+        statements = []
+        for statement in self.body:
+            if isinstance(statement, parser.String):
+                # Strip and reindent docstring.
+                value = statement.value.strip()
+                if u'\n' in value:
+                    lines = value.split(u'\n')
+                    while all(index == 0 or not line or line.startswith(u'    ') for index, line in enumerate(lines)):
+                        lines = [
+                            (line[4:] if line else u'') if index > 0 else line
+                            for index, line in enumerate(lines)
+                            ]
+                        if any(line.startswith(u'    ') for line in lines):
+                            continue
+                        break
+                    value = u'\n'.join(
+                        u'{}{}'.format(u'  ' * depth, line) if line else u''
+                        for line in lines
+                        ).strip()
+                    if u'\n' in value:
+                        value += u'\n{}'.format(u'  ' * depth)
+                statement.value = value
+            statements.append(u'{}{}\n'.format(u'  ' * depth, statement.source_julia(depth = depth + 1)))
+        return u''.join(statements)
 
 
 class FunctionFileInput(formulas_parsers_2to3.FunctionFileInput):
@@ -613,17 +558,16 @@ class If(formulas_parsers_2to3.If):
 
     def source_julia(self, depth = 0):
         return u''.join(
-            u'{indent}{word}{test}\n{body}'.format(
+            u'{word}{test}\n{body}'.format(
                 body = u''.join(
                     u'{}{}\n'.format(u'  ' * (depth + 1), statement.source_julia(depth = depth + 1))
                     for statement in body
                     ),
-                indent = u'  ' * depth,
                 test = u' {}'.format(test.source_julia(depth = depth + 2)) if test is not None else u'',
-                word = u'else' if test is None else u'if' if index == 0 else u'elseif',
+                word = (u'{}else' if test is None else u'if' if index == 0 else u'{}elseif').format(u'  ' * depth),
                 )
             for index, (test, body) in enumerate(self.items)
-            )
+            ) + u'{}end'.format(u'  ' * depth)
 
 
 class Instant(formulas_parsers_2to3.Instant):
@@ -838,6 +782,87 @@ class Variable(formulas_parsers_2to3.Variable):
 
     def source_julia(self, depth = 0):
         return self.name
+
+
+# Formula-specific classes
+
+
+class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
+    def juliaize(self):
+        return self
+
+    def source_julia(self, depth = 0):
+        parser = self.parser
+        statements = None
+        for formula in self.variable_by_name.itervalues():
+            if isinstance(formula, parser.FormulaFunction):
+                # Simple formula
+                statements = formula.juliaize().source_julia_statements(depth = depth + 1)
+                break
+        else:
+            # Dated formula
+            dated_functions_decorator = [
+                decorator
+                for decorator in self.variable_by_name.itervalues()
+                if isinstance(decorator, parser.Decorator) and decorator.name == 'dated_function'
+                ]
+            statements_blocks = []
+            for decorator in dated_functions_decorator:
+                call = decorator.subject
+                assert isinstance(call, parser.Call)
+                assert call.keyword_argument is None
+                assert call.star_argument is None
+                start_date = call.positional_arguments[0] \
+                    if len(call.positional_arguments) >= 1 \
+                    else call.named_arguments.get('start')
+                stop_date = call.positional_arguments[1] \
+                    if len(call.positional_arguments) >= 2 \
+                    else call.named_arguments.get('stop')
+                assert start_date is not None or stop_date is not None
+                if start_date is None:
+                    test = u'{optional_else}if period.start <= {stop_date}'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
+                        )
+                elif stop_date is None:
+                    test = u'{optional_else}if {start_date} <= period.start'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
+                        )
+                else:
+                    test = u'{optional_else}if {start_date} <= period.start && period.start <= {stop_date}'.format(
+                        optional_else = u'else' if statements_blocks else u'',
+                        start_date = start_date.juliaize().source_julia(depth = depth + 2),
+                        stop_date = stop_date.juliaize().source_julia(depth = depth + 2),
+                        )
+
+                function = decorator.decorated
+                assert isinstance(function, parser.FormulaFunction)
+                statements_blocks.append(u"{indent}  {test}\n{statements}".format(
+                    indent = u'  ' * depth,
+                    statements = function.juliaize().source_julia_statements(depth = depth + 2),
+                    test = test,
+                    ))
+            statements_blocks.append(textwrap.dedent(u"""\
+                {indent}  else
+                {indent}    return period, default_array(variable)
+                {indent}  end
+                """).format(
+                indent = u'  ' * depth,
+                ))
+            statements = u''.join(statements_blocks)
+
+        return textwrap.dedent(u"""
+            {call} do simulation, variable, period
+            {statements}end
+            """).format(
+            call = parser.source_julia_column_without_function(),
+            statements = statements or u'',
+            )
+
+
+class FormulaFunction(Function, formulas_parsers_2to3.FormulaFunction):
+    pass
 
 
 # Julia parser & compiler
