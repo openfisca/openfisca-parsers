@@ -462,7 +462,7 @@ class Function(formulas_parsers_2to3.Function):
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
-                    ),
+                    ) if isinstance(variable, parser.Variable) else variable.juliaize(),
                 )
             for name, variable in self.variable_by_name.iteritems()
             )
