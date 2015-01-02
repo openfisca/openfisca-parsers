@@ -318,10 +318,10 @@ class Call(formulas_parsers_2to3.Call):
             )
 
     def source_julia(self, depth = 0):
-        star = ([u'*{}'.format(self.star_argument.source_julia(depth = depth + 2))]
+        star = ([u'{}...'.format(self.star_argument.source_julia(depth = depth + 2))]
             if self.star_argument is not None
             else [])
-        keyword = ([u'**{}'.format(self.keyword_argument.source_julia(depth = depth + 2))]
+        keyword = ([u'{}...'.format(self.keyword_argument.source_julia(depth = depth + 2))]
             if self.keyword_argument is not None
             else [])
         arguments_str = [
