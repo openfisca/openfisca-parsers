@@ -530,6 +530,14 @@ class Function(formulas_parsers_2to3.Function):
             )
 
 
+class FunctionFileInput(formulas_parsers_2to3.FunctionFileInput):
+    @classmethod
+    def parse(cls, function, parser = None):
+        function_wrapper = super(FunctionFileInput, cls).parse(function, parser = parser)
+        parser.non_formula_function_by_name[function_wrapper.name] = function_wrapper
+        return function_wrapper
+
+
 class If(formulas_parsers_2to3.If):
     def juliaize(self):
         return self.__class__(
@@ -795,11 +803,13 @@ class Parser(formulas_parsers_2to3.Parser):
     FormulaClass = FormulaClass
     FormulaFunction = FormulaFunction
     Function = Function
+    FunctionFileInput = FunctionFileInput
     If = If
     Instant = Instant
     Key = Key
     Lambda = Lambda
     List = List
+    non_formula_function_by_name = None
     Not = Not
     Number = Number
     ParentheticalExpression = ParentheticalExpression
@@ -811,6 +821,11 @@ class Parser(formulas_parsers_2to3.Parser):
     Test = Test
     Tuple = Tuple
     Variable = Variable
+
+    def __init__(self, country_package = None, driver = None, tax_benefit_system = None):
+        super(Parser, self).__init__(country_package = country_package, driver = driver,
+            tax_benefit_system = tax_benefit_system)
+        self.non_formula_function_by_name = collections.OrderedDict()
 
     def source_julia_column_without_function(self):
         column = self.column
@@ -1206,8 +1221,8 @@ def main():
         for parameter_julia_source in parameter_julia_source_by_path.itervalues():
             julia_file.write(parameter_julia_source)
 
-    input_variable_definition_julia_str_by_name = collections.OrderedDict()
-    output_variable_definition_julia_str_by_name_by_module_name = {}
+    input_variable_definition_julia_source_by_name = collections.OrderedDict()
+    julia_source_by_name_by_module_name = {}
     for column in tax_benefit_system.column_by_name.itervalues():
         print column.name
         parser.column = column
@@ -1215,7 +1230,7 @@ def main():
         column_formula_class = column.formula_class
         if column_formula_class is None:
             # Input variable
-            input_variable_definition_julia_str_by_name[column.name] = parser.source_julia_column_without_function()
+            input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
             continue
         if issubclass(column_formula_class, formulas.AbstractEntityToEntity):
             # EntityToPerson or PersonToEntity converters
@@ -1225,7 +1240,7 @@ def main():
                 'zone_apl',
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
-            input_variable_definition_julia_str_by_name[column.name] = parser.source_julia_column_without_function()
+            input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
             continue
 
         try:
@@ -1247,7 +1262,7 @@ def main():
         #     function_functions = [formula_class_wrapper.value_by_name['function']]
 
         try:
-            julia_str = formula_class_wrapper.juliaize().source_julia(depth = 0)
+            julia_source = formula_class_wrapper.juliaize().source_julia(depth = 0)
         except:
             node = formula_class_wrapper.node
             if node is not None:
@@ -1258,18 +1273,37 @@ def main():
         module_name = formula_class_wrapper.containing_module.python.__name__
         assert module_name.startswith('openfisca_france.model.')
         module_name = module_name[len('openfisca_france.model.'):]
-        output_variable_definition_julia_str_by_name_by_module_name.setdefault(module_name, {})[column.name] = julia_str
+        julia_source_by_name_by_module_name.setdefault(module_name, {})[column.name] = julia_source
+
+    # Add non-formula functions to modules.
+    for function_wrapper in parser.non_formula_function_by_name.itervalues():
+        try:
+            julia_source = function_wrapper.juliaize().source_julia(depth = 0)
+        except:
+            node = function_wrapper.node
+            if node is not None:
+                print "An exception occurred When juliaizing function {}:\n{}\n\n{}".format(function_wrapper.name,
+                    repr(node), unicode(node).encode('utf-8'))
+            raise
+
+        module_name = function_wrapper.containing_module.python.__name__
+        assert module_name.startswith('openfisca_france.model.')
+        module_name = module_name[len('openfisca_france.model.'):]
+        julia_source_by_name_by_module_name.setdefault(module_name, {})[function_wrapper.name] = julia_source
+        print module_name
+        print julia_source
+        print
 
     julia_path = os.path.join(args.julia_package_dir, 'src', 'input_variables.jl')
     with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
         julia_file.write(julia_file_header)
         julia_file.write(u'\n')
-        for input_variable_definition_julia_str in input_variable_definition_julia_str_by_name.itervalues():
+        for input_variable_definition_julia_source in input_variable_definition_julia_source_by_name.itervalues():
             julia_file.write(u'\n')
-            julia_file.write(input_variable_definition_julia_str)
+            julia_file.write(input_variable_definition_julia_source)
             julia_file.write(u'\n')
 
-    for module_name, julia_str_by_name in output_variable_definition_julia_str_by_name_by_module_name.iteritems():
+    for module_name, julia_source_by_name in julia_source_by_name_by_module_name.iteritems():
         julia_relative_path = os.path.join(*module_name.split('.')) + '.jl'
         julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas', julia_relative_path)
         julia_dir = os.path.dirname(julia_path)
@@ -1277,9 +1311,9 @@ def main():
             os.makedirs(julia_dir)
         with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
             julia_file.write(julia_file_header)
-            for column_name, julia_str in sorted(julia_str_by_name.iteritems()):
+            for column_name, julia_source in sorted(julia_source_by_name.iteritems()):
                 julia_file.write(u'\n')
-                julia_file.write(julia_str)
+                julia_file.write(julia_source)
 
     return 0
 
