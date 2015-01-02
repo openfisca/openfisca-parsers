@@ -505,7 +505,7 @@ class Function(formulas_parsers_2to3.Function):
             body = self.source_julia_statements(depth = depth + 1),
             indent = u'  ' * depth,
             name = self.name,
-            named_parameters = u'; {}'.format(u', '.join(named_parameters)),
+            named_parameters = u'; {}'.format(u', '.join(named_parameters)) if named_parameters else u'',
             positional_parameters = u', '.join(positional_parameters),
             )
 
