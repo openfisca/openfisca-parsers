@@ -678,6 +678,14 @@ class List(formulas_parsers_2to3.List):
             ))
 
 
+class NoneWrapper(formulas_parsers_2to3.NoneWrapper):
+    def juliaize(self):
+        return self
+
+    def source_julia(self, depth = 0):
+        return u'nothing'
+
+
 class Not(formulas_parsers_2to3.Not):
     def juliaize(self):
         return self.__class__(
@@ -925,6 +933,7 @@ class Parser(formulas_parsers_2to3.Parser):
     Lambda = Lambda
     List = List
     non_formula_function_by_name = None
+    NoneWrapper = NoneWrapper
     Not = Not
     Number = Number
     ParentheticalExpression = ParentheticalExpression

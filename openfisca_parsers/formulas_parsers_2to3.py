@@ -1366,6 +1366,12 @@ class Logger(AbstractWrapper):
 #     pass
 
 
+class NoneWrapper(AbstractWrapper):
+    @property
+    def guess(self):
+        return self
+
+
 class Module(AbstractWrapper):
     python = None
     variable_by_name = None
@@ -1377,7 +1383,6 @@ class Module(AbstractWrapper):
             self.python = python
         self.variable_by_name = collections.OrderedDict((
             ("False", parser.Variable(container = self, name = u'False', parser = parser)),
-            ("None", parser.Variable(container = self, name = u'None', parser = parser)),
             ("True", parser.Variable(container = self, name = u'True', parser = parser)),
             ))
         self.variable_by_name.update(sorted(dict(
@@ -1891,6 +1896,7 @@ class Parser(conv.State):
     Logger = Logger
     # Math = Math
     Module = Module
+    NoneWrapper = NoneWrapper
     Not = Not
     Number = Number
     ParentheticalExpression = ParentheticalExpression
@@ -2071,8 +2077,11 @@ class Parser(conv.State):
             return self.Tuple.parse(node, container = container, parser = self)
 
         if node.type == tokens.NAME:
-            variable = container.get_variable(node.value, default = None, parser = self)
-            assert variable is not None, "Undefined variable: {}".format(node.value)
+            name = node.value
+            if name == u'None':
+                return self.NoneWrapper(container = container, parser = self)
+            variable = container.get_variable(name, default = None, parser = self)
+            assert variable is not None, "Undefined variable: {}".format(name)
             return variable
 
         if node.type == tokens.NUMBER:
