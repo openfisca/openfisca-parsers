@@ -326,8 +326,81 @@ class Call(formulas_parsers_2to3.Call):
         subject = self.subject.juliaize()
         if isinstance(subject, parser.Attribute):
             method_name = subject.name
-            if method_name == 'offset':
-                method_subject = subject.subject.juliaize()
+            if method_name == 'astype':
+                assert len(self.positional_arguments) == 1, self.positional_arguments
+                argument_string = self.positional_arguments[0].guess(parser.String)
+                if argument_string is not None:
+                    if argument_string.value == u'timedelta64[M]':
+                        return parser.Call(
+                            container = self.container,
+                            parser = parser,
+                            positional_arguments = [
+                                parser.Term(
+                                    items = [
+                                        parser.Call(
+                                            container = self.container,
+                                            parser = parser,
+                                            positional_arguments = [
+                                                subject.subject,
+                                                ],
+                                            subject = parser.Variable(
+                                                name = u'int',
+                                                parser = parser,
+                                                ),
+                                            ),
+                                        u'*',
+                                        parser.Number(
+                                            parser = parser,
+                                            value = 12,
+                                            ),
+                                        u'/',
+                                        parser.Number(
+                                            parser = parser,
+                                            value = 365.25,
+                                            ),
+                                        ],
+                                    parser = parser,
+                                    ),
+                                ],
+                            subject = parser.Variable(
+                                name = u'floor',
+                                parser = parser,
+                                ),
+                            )
+                    elif argument_string.value == u'timedelta64[Y]':
+                        return parser.Call(
+                            container = self.container,
+                            parser = parser,
+                            positional_arguments = [
+                                parser.Term(
+                                    items = [
+                                        parser.Call(
+                                            container = self.container,
+                                            parser = parser,
+                                            positional_arguments = [
+                                                subject.subject,
+                                                ],
+                                            subject = parser.Variable(
+                                                name = u'int',
+                                                parser = parser,
+                                                ),
+                                            ),
+                                        u'/',
+                                        parser.Number(
+                                            parser = parser,
+                                            value = 365.25,
+                                            ),
+                                        ],
+                                    parser = parser,
+                                    ),
+                                ],
+                            subject = parser.Variable(
+                                name = u'floor',
+                                parser = parser,
+                                ),
+                            )
+            elif method_name == 'offset':
+                method_subject = subject.subject
                 if method_subject.guess(parser.Instant):
                     assert len(self.positional_arguments) == 2, self.positional_arguments
                     delta, unit = self.positional_arguments
@@ -355,7 +428,7 @@ class Call(formulas_parsers_2to3.Call):
                                     ),
                                 )
             if method_name == 'period':
-                method_subject = subject.subject.juliaize()
+                method_subject = subject.subject
                 if method_subject.guess(parser.Instant):
                     assert len(self.positional_arguments) >= 1, self.positional_arguments
                     unit = self.positional_arguments[0]
@@ -395,6 +468,11 @@ class Call(formulas_parsers_2to3.Call):
                         parser = parser,
                         ),
                     )
+            elif function_name == 'datetime64':
+                assert len(self.positional_arguments) == 1, self.positional_arguments
+                argument = self.positional_arguments[0]
+                assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
+                return argument
         return self.__class__(
             container = self.container,
             hint = self.hint,

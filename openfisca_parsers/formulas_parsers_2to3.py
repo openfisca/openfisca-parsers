@@ -344,7 +344,12 @@ class Attribute(AbstractWrapper):
             return guessed
 
         parser = self.parser
-        if self.name == 'start':
+        if self.name == 'date':
+            if issubclass(parser.Date, expected):
+                period = self.subject.guess(parser.Period)
+                if period is not None:
+                    return parser.Date(parser = parser)
+        elif self.name == 'start':
             if issubclass(parser.Instant, expected):
                 period = self.subject.guess(parser.Period)
                 if period is not None:
@@ -410,15 +415,18 @@ class Call(AbstractWrapper):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
                 if method.name == 'offset':
-                    instant = method.subject.guess(parser.Instant)
-                    if instant is not None:
+                    if method.subject.guess(parser.Instant) is not None:
                         return parser.Instant(parser = parser)
         elif issubclass(parser.Period, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
                 if method.name == 'offset':
-                    instant = method.subject.guess(parser.Period)
-                    if instant is not None:
+                    if method.subject.guess(parser.Period) is not None:
+                        # period.offset(...)
+                        return parser.Period(parser = parser)
+                elif method.name == 'period':
+                    if method.subject.guess(parser.Instant) is not None or method.subject.guess(parser.Period) is not None:
+                        # instant.period or period.period(...)
                         return parser.Period(parser = parser)
 
         return None
