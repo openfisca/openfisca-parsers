@@ -77,7 +77,7 @@ class AndExpression(formulas_parsers_2to3.AndExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             operands = [
                 operand.juliaize()
                 for operand in self.operands
@@ -97,7 +97,7 @@ class ArithmeticExpression(formulas_parsers_2to3.ArithmeticExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             items = [
                 item if item_index & 1 else item.juliaize()
                 for item_index, item in enumerate(self.items)
@@ -117,7 +117,7 @@ class Assert(formulas_parsers_2to3.Assert):
         return self.__class__(
             container = self.container,
             error = self.error.juliaize() if self.error is not None else None,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             test = self.test.juliaize(),
             )
@@ -139,7 +139,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                 # Convert variables to Julia only once, during assignment.
                 left.append(left_item.__class__(
                     container = left_item.container,
-                    guess = left_item._guess,
+                    hint = left_item.hint,
                     name = left_item.name,
                     parser = parser,
                     value = left_item.value.juliaize(),
@@ -169,11 +169,11 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                     # @calculate(x, ...)
                                     return parser.Call(
                                         container = container,
-                                        # guess = parser.ArrayHandle(parser = parser),  TODO
+                                        # hint = parser.ArrayHandle(parser = parser),  TODO
                                         parser = parser,
                                         positional_arguments = [parser.Variable(
                                             container = container,
-                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            # hint = parser.ArrayHandle(parser = parser),  TODO
                                             name = requested_variable_string.value,
                                             parser = parser,
                                             )] + call.positional_arguments[1:],
@@ -193,7 +193,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                     right = [
                                         parser.Call(
                                             container = container,
-                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            # hint = parser.ArrayHandle(parser = parser),  TODO
                                             parser = parser,
                                             positional_arguments = [parser.String(
                                                 container = container,
@@ -218,13 +218,14 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                     # @at(x, ...)
                                     return parser.Call(
                                         container = container,
-                                        # guess = parser.ArrayHandle(parser = parser),  TODO
+                                        # hint = parser.ArrayHandle(parser = parser),  TODO
                                         parser = parser,
                                         positional_arguments = [
-                                            parser.String(
+                                            parser.Variable(
                                                 container = container,
+                                                # hint = parser.ArrayHandle(parser = parser),  TODO
+                                                name = requested_variable_string.value,
                                                 parser = parser,
-                                                value = requested_variable_string.value,
                                                 ),
                                             ] + call.positional_arguments[1:] + [
                                             # Add nothing as default value.
@@ -249,7 +250,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                     right = [
                                         parser.Call(
                                             container = container,
-                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            # hint = parser.ArrayHandle(parser = parser),  TODO
                                             parser = parser,
                                             positional_arguments = [
                                                 parser.String(
@@ -273,7 +274,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                     )
         return self.__class__(
             container = container,
-            guess = self._guess,
+            hint = self.hint,
             left = left,
             operator = self.operator,
             parser = self.parser,
@@ -296,7 +297,7 @@ class Attribute(formulas_parsers_2to3.Attribute):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             name = self.name,
             parser = self.parser,
             subject = self.subject.juliaize(),
@@ -327,15 +328,14 @@ class Call(formulas_parsers_2to3.Call):
             method_name = subject.name
             if method_name == 'offset':
                 method_subject = subject.subject.juliaize()
-                method_subject_guess = method_subject.guess
-                if isinstance(method_subject_guess, parser.Instant):
+                if method_subject.guess(parser.Instant):
                     assert len(self.positional_arguments) == 2, self.positional_arguments
                     delta, unit = self.positional_arguments
                     if isinstance(delta, parser.String) and delta.value == 'first-of':
                         if isinstance(unit, parser.String) and unit.value == 'month':
                             return parser.Call(
                                 container = self.container,
-                                guess = parser.Instant(parser = parser),
+                                hint = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
                                 subject = parser.Variable(
@@ -346,7 +346,7 @@ class Call(formulas_parsers_2to3.Call):
                         if isinstance(unit, parser.String) and unit.value == 'year':
                             return parser.Call(
                                 container = self.container,
-                                guess = parser.Instant(parser = parser),
+                                hint = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
                                 subject = parser.Variable(
@@ -356,14 +356,13 @@ class Call(formulas_parsers_2to3.Call):
                                 )
             if method_name == 'period':
                 method_subject = subject.subject.juliaize()
-                method_subject_guess = method_subject.guess
-                if isinstance(method_subject_guess, parser.Instant):
+                if method_subject.guess(parser.Instant):
                     assert len(self.positional_arguments) >= 1, self.positional_arguments
                     unit = self.positional_arguments[0]
                     if isinstance(unit, parser.String) and unit.value == 'month':
                         return parser.Call(
                             container = self.container,
-                            guess = parser.Period(parser = parser),
+                            hint = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
                             subject = parser.Variable(
@@ -374,7 +373,7 @@ class Call(formulas_parsers_2to3.Call):
                     if isinstance(unit, parser.String) and unit.value == 'year':
                         return parser.Call(
                             container = self.container,
-                            guess = parser.Period(parser = parser),
+                            hint = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + self.positional_arguments[1:],
                             subject = parser.Variable(
@@ -388,7 +387,7 @@ class Call(formulas_parsers_2to3.Call):
                 assert len(self.positional_arguments) == 3, self.positional_arguments
                 return parser.Call(
                     container = self.container,
-                    guess = parser.Date(parser = parser),
+                    hint = parser.Date(parser = parser),
                     parser = parser,
                     positional_arguments = self.positional_arguments,
                     subject = parser.Variable(
@@ -398,7 +397,7 @@ class Call(formulas_parsers_2to3.Call):
                     )
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             keyword_argument = keyword_argument,
             named_arguments = named_arguments,
             parser = self.parser,
@@ -435,7 +434,7 @@ class Comparison(formulas_parsers_2to3.Comparison):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             left = self.left.juliaize(),
             operator = self.operator,
             parser = self.parser,
@@ -466,7 +465,7 @@ class Expression(formulas_parsers_2to3.Expression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             operands = [
                 operand.juliaize()
                 for operand in self.operands
@@ -486,7 +485,7 @@ class Factor(formulas_parsers_2to3.Factor):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             operand = self.operand.juliaize(),
             operator = self.operator,
             parser = self.parser,
@@ -505,7 +504,7 @@ class For(formulas_parsers_2to3.For):
                 name,
                 variable.__class__(
                     container = variable.container,
-                    guess = variable._guess,
+                    hint = variable.hint,
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
@@ -516,7 +515,7 @@ class For(formulas_parsers_2to3.For):
 
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             body = [
                 statement.juliaize()
                 for statement in self.body
@@ -548,7 +547,7 @@ class Function(formulas_parsers_2to3.Function):
                 name,
                 variable.__class__(
                     container = variable.container,
-                    guess = variable._guess,
+                    hint = variable.hint,
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
@@ -559,7 +558,7 @@ class Function(formulas_parsers_2to3.Function):
 
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             body = [
                 statement.juliaize()
                 for statement in self.body
@@ -639,7 +638,7 @@ class If(formulas_parsers_2to3.If):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             items = [
                 (
                     test.juliaize() if test is not None else None,
@@ -676,7 +675,7 @@ class Key(formulas_parsers_2to3.Key):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             subject = self.subject.juliaize(),
             value = self.value.juliaize(),
@@ -698,7 +697,7 @@ class Lambda(formulas_parsers_2to3.Lambda):
                 name,
                 variable.__class__(
                     container = variable.container,
-                    guess = variable._guess,
+                    hint = variable.hint,
                     name = variable.name,
                     parser = parser,
                     value = variable.value.juliaize() if variable.value is not None else None,
@@ -709,7 +708,7 @@ class Lambda(formulas_parsers_2to3.Lambda):
 
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             expression = self.expression.juliaize(),
             parser = parser,
             positional_parameters = self.positional_parameters,
@@ -727,7 +726,7 @@ class List(formulas_parsers_2to3.List):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             value = [
                 item.juliaize()
@@ -754,7 +753,7 @@ class Not(formulas_parsers_2to3.Not):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             value = self.value.juliaize(),
             )
@@ -777,7 +776,7 @@ class ParentheticalExpression(formulas_parsers_2to3.ParentheticalExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             value = self.value.juliaize(),
             )
@@ -797,7 +796,7 @@ class Return(formulas_parsers_2to3.Return):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             value = self.value.juliaize(),
             )
@@ -828,7 +827,7 @@ class Term(formulas_parsers_2to3.Term):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             items = [
                 item if item_index & 1 else item.juliaize()
                 for item_index, item in enumerate(self.items)
@@ -851,7 +850,7 @@ class Test(formulas_parsers_2to3.Test):
         return self.__class__(
             container = self.container,
             false_value = self.false_value.juliaize(),
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             test = self.test.juliaize(),
             true_value = self.true_value.juliaize(),
@@ -869,7 +868,7 @@ class Tuple(formulas_parsers_2to3.Tuple):
     def juliaize(self):
         return self.__class__(
             container = self.container,
-            guess = self._guess,
+            hint = self.hint,
             parser = self.parser,
             value = tuple(
                 item.juliaize()

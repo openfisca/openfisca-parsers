@@ -55,20 +55,20 @@ lib2to3.pytree.Leaf.__unicode__ = lambda self: self.prefix.decode('utf-8') + (se
 
 
 class AbstractWrapper(object):
-    _guess = None  # A wrapper that is the guessed type of this wrapper
     container = None  # The wrapper directly containing this wrapper
+    hint = None  # A wrapper that is the hinted type of this wrapper
     node = None  # The lib2to3 node
     parser = None
 
-    def __init__(self, container = None, guess = None, node = None, parser = None):
+    def __init__(self, container = None, hint = None, node = None, parser = None):
         if container is not None:
             assert isinstance(container, AbstractWrapper), "Invalid container {} for node:\n{}\n\n{}".format(container,
                 repr(node), unicode(node).encode('utf-8'))
             self.container = container
-        if guess is not None:
-            assert isinstance(guess, AbstractWrapper), "Invalid guess {} for node:\n{}\n\n{}".format(guess, repr(node),
+        if hint is not None:
+            assert isinstance(hint, AbstractWrapper), "Invalid hint {} for node:\n{}\n\n{}".format(hint, repr(node),
                 unicode(node).encode('utf-8'))
-            self._guess = guess
+            self.hint = hint
         if node is not None:
             assert isinstance(node, lib2to3.pytree.Base), "Invalid node:\n{}\n\n{}".format(repr(node),
                 unicode(node).encode('utf-8'))
@@ -98,22 +98,23 @@ class AbstractWrapper(object):
             return None
         return container.containing_module
 
-    def guess_getter(self):
-        return self._guess
-
-    def guess_setter(self, guess):
-        assert isinstance(guess, AbstractWrapper)
-        self._guess = guess
-
-    guess = property(guess_getter, guess_setter)
+    def guess(self, expected):
+        assert issubclass(expected, AbstractWrapper)
+        if isinstance(self, expected):
+            return self
+        if self.hint is not None:
+            guessed = self.hint.guess(expected)
+            if guessed is not None:
+                return guessed
+        return None
 
 
 class AndExpression(AbstractWrapper):
     operands = None
     operator = None
 
-    def __init__(self, container = None, guess = None, node = None, operands = None, operator = None, parser = None):
-        super(AndExpression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, operands = None, operator = None, parser = None):
+        super(AndExpression, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(operands, list)
         self.operands = operands
         assert isinstance(operator, basestring)
@@ -153,8 +154,8 @@ class AndExpression(AbstractWrapper):
 class ArithmeticExpression(AbstractWrapper):
     items = None
 
-    def __init__(self, container = None, guess = None, items = None, node = None, parser = None):
-        super(ArithmeticExpression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, items = None, node = None, parser = None):
+        super(ArithmeticExpression, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(items, list)
         assert len(items) >= 3 and (len(items) & 1)
         self.items = items
@@ -208,10 +209,6 @@ class ArithmeticExpression(AbstractWrapper):
 #         if operation is not None:
 #             self.operation = operation
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
-
 
 # class ArrayLength(AbstractWrapper):
 #     array = None
@@ -221,17 +218,13 @@ class ArithmeticExpression(AbstractWrapper):
 #         if array is not None:
 #             self.array = array
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self.parser.Natural(parser = self.parser)
-
 
 class Assert(AbstractWrapper):
     error = None
     test = None
 
-    def __init__(self, container = None, error = None, guess = None, node = None, parser = None, test = None):
-        super(Assert, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, error = None, hint = None, node = None, parser = None, test = None):
+        super(Assert, self).__init__(container = container, hint = hint, node = node, parser = parser)
         if error is not None:
             assert isinstance(error, AbstractWrapper)
             self.error = error
@@ -260,9 +253,9 @@ class Assignment(AbstractWrapper):
     operator = None
     right = None
 
-    def __init__(self, container = None, guess = None, left = None, node = None, operator = None, parser = None,
+    def __init__(self, container = None, hint = None, left = None, node = None, operator = None, parser = None,
             right = None):
-        super(Assignment, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Assignment, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(left, list)
         self.left = left
         assert isinstance(operator, basestring)
@@ -338,18 +331,26 @@ class Attribute(AbstractWrapper):
     name = None
     subject = None
 
-    def __init__(self, container = None, guess = None, name = None, node = None, parser = None, subject = None):
-        super(Attribute, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, name = None, node = None, parser = None, subject = None):
+        super(Attribute, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(name, basestring)
         self.name = name
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
 
-        if self.guess is None:
-            subject_guess = subject.guess
-            if name == 'start':
-                if isinstance(subject_guess, parser.Period):
-                    self.guess = parser.Instant(parser = parser)
+    def guess(self, expected):
+        guessed = super(Attribute, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if self.name == 'start':
+            if issubclass(parser.Instant, expected):
+                period = self.subject.guess(parser.Period)
+                if period is not None:
+                    return parser.Instant(parser = parser)
+
+        return None
 
     @classmethod
     def parse(cls, subject, node, container = None, parser = None):
@@ -372,9 +373,9 @@ class Call(AbstractWrapper):
     star_argument = None
     subject = None
 
-    def __init__(self, container = None, guess = None, keyword_argument = None, named_arguments = None, node = None,
+    def __init__(self, container = None, hint = None, keyword_argument = None, named_arguments = None, node = None,
             parser = None, positional_arguments = None, star_argument = None, subject = None):
-        super(Call, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Call, self).__init__(container = container, hint = hint, node = node, parser = parser)
         if keyword_argument is not None:
             assert isinstance(keyword_argument, AbstractWrapper)
             self.keyword_argument = keyword_argument
@@ -394,19 +395,33 @@ class Call(AbstractWrapper):
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
 
-        if self.guess is None:
-            if isinstance(subject, parser.Attribute):
-                method_name = subject.name
-                if method_name == 'offset':
-                    method_subject_guess = subject.subject.guess
-                    if isinstance(method_subject_guess, parser.Instant):
-                        self.guess = parser.Instant(parser = parser)
-                    elif isinstance(method_subject_guess, parser.Period):
-                        self.guess = parser.Period(parser = parser)
-            elif isinstance(subject, parser.Function):
-                function_name = subject.name
-                if function_name == 'date':
-                    self.guess = parser.Date(parser = parser)
+    def guess(self, expected):
+        guessed = super(Call, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Date, expected):
+            function = self.subject.guess(parser.Function)
+            if function is not None:
+                if function.name == 'date':
+                    return parser.Date(parser = parser)
+        elif issubclass(parser.Instant, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name == 'offset':
+                    instant = method.subject.guess(parser.Instant)
+                    if instant is not None:
+                        return parser.Instant(parser = parser)
+        elif issubclass(parser.Period, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name == 'offset':
+                    instant = method.subject.guess(parser.Period)
+                    if instant is not None:
+                        return parser.Period(parser = parser)
+
+        return None
 
     @classmethod
     def parse(cls, subject, node, container = None, parser = None):
@@ -497,10 +512,6 @@ class Class(AbstractWrapper):
             variable = default
         return variable
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
     @classmethod
     def parse(cls, node, container = None, parser = None):
         try:
@@ -589,9 +600,9 @@ class Comparison(AbstractWrapper):
     operator = None
     right = None
 
-    def __init__(self, container = None, guess = None, left = None, node = None, operator = None, parser = None,
+    def __init__(self, container = None, hint = None, left = None, node = None, operator = None, parser = None,
             right = None):
-        super(Comparison, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Comparison, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(left, AbstractWrapper)
         self.left = left
         assert isinstance(operator, basestring)
@@ -647,9 +658,7 @@ class Continue(AbstractWrapper):
 
 
 class Date(AbstractWrapper):
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
+    pass
 
 
 # class DatedHolder(AbstractWrapper):
@@ -672,15 +681,9 @@ class Date(AbstractWrapper):
 #         if is_argument:
 #             self.is_argument = True
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
 
-
-# class DateTime64(AbstractWrapper):
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
+class DateTime64(AbstractWrapper):
+    pass
 
 
 class Decorator(AbstractWrapper):
@@ -737,15 +740,9 @@ class Enum(AbstractWrapper):
         if value is not None:
             self.value = value
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
 
 # class Entity(AbstractWrapper):
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
+#     pass
 
 
 # class EntityToEntity(AbstractWrapper):
@@ -774,8 +771,8 @@ class Expression(AbstractWrapper):
     operands = None
     operator = None
 
-    def __init__(self, container = None, guess = None, node = None, operands = None, operator = None, parser = None):
-        super(Expression, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, operands = None, operator = None, parser = None):
+        super(Expression, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(operands, list)
         self.operands = operands
         assert isinstance(operator, basestring)
@@ -816,8 +813,8 @@ class Factor(AbstractWrapper):
     operand = None
     operator = None
 
-    def __init__(self, container = None, guess = None, node = None, operand = None, operator = None, parser = None):
-        super(Factor, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, operand = None, operator = None, parser = None):
+        super(Factor, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(operand, AbstractWrapper)
         self.operand = operand
         assert isinstance(operator, basestring)
@@ -842,9 +839,9 @@ class For(AbstractWrapper):
     iterator = None
     variable_by_name = None
 
-    def __init__(self, container = None, guess = None, iterator = None, node = None, body = None, parser = None,
+    def __init__(self, container = None, hint = None, iterator = None, node = None, body = None, parser = None,
             variable_by_name = None):
-        super(For, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(For, self).__init__(container = container, hint = hint, node = node, parser = parser)
         if body is not None:
             assert isinstance(body, list)
             self.body = body
@@ -907,10 +904,10 @@ class Function(AbstractWrapper):
     star_name = None  # Name of "args" in "*args"
     variable_by_name = None
 
-    def __init__(self, body = None, container = None, guess = None, name = None, keyword_name = None,
+    def __init__(self, body = None, container = None, hint = None, name = None, keyword_name = None,
             named_parameters = None, node = None, parser = None, positional_parameters = None, returns = None,
             star_name = None, variable_by_name = None):
-        super(Function, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Function, self).__init__(container = container, hint = hint, node = node, parser = parser)
         if body is None:
             body = []
         else:
@@ -982,10 +979,6 @@ class Function(AbstractWrapper):
                 raise KeyError("Undefined value for {}".format(name))
             variable = default
         return variable
-
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
 
     def parse_parameters(self):
         parser = self.parser
@@ -1138,16 +1131,12 @@ class FunctionFileInput(AbstractWrapper):
 #         if formula is not None:
 #             self.formula = formula
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
-
 
 class If(AbstractWrapper):
     items = None  # List of (test, body) couples
 
-    def __init__(self, container = None, guess = None, node = None, items = None, parser = None):
-        super(If, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, items = None, parser = None):
+        super(If, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(items, list)
         self.items = items
 
@@ -1188,17 +1177,15 @@ class If(AbstractWrapper):
 
 
 class Instant(AbstractWrapper):
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
+    pass
 
 
 class Key(AbstractWrapper):
     subject = None
     value = None  # Value of the key
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, subject = None, value = None):
-        super(Key, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, parser = None, subject = None, value = None):
+        super(Key, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(subject, AbstractWrapper)
         self.subject = subject
         assert isinstance(value, AbstractWrapper)
@@ -1225,9 +1212,9 @@ class Lambda(AbstractWrapper):
     positional_parameters = None  # List of parameters names
     variable_by_name = None
 
-    def __init__(self, container = None, expression = None, guess = None, node = None, parser = None,
+    def __init__(self, container = None, expression = None, hint = None, node = None, parser = None,
             positional_parameters = None, variable_by_name = None):
-        super(Lambda, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Lambda, self).__init__(container = container, hint = hint, node = node, parser = parser)
         if expression is not None:
             assert isinstance(expression, AbstractWrapper)
             self.expression = expression
@@ -1282,10 +1269,6 @@ class Lambda(AbstractWrapper):
             variable = default
         return variable
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
 
 class LawNode(AbstractWrapper):
     is_reference = True
@@ -1302,10 +1285,6 @@ class LawNode(AbstractWrapper):
         if parent is not None:
             assert isinstance(parent, LawNode)
             self.parent = parent
-
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
 
     def iter_names(self):
         parent = self.parent
@@ -1324,15 +1303,11 @@ class LawNode(AbstractWrapper):
 class List(AbstractWrapper):
     value = None  # list value, as a list
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
-        super(List, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(List, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(value, list), "Unexpected value for list: {} of type {}".format(value,
             type(value))
         self.value = value
-
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1357,9 +1332,7 @@ class List(AbstractWrapper):
 
 
 class Logger(AbstractWrapper):
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
+    pass
 
 
 # class Math(AbstractWrapper):
@@ -1367,9 +1340,7 @@ class Logger(AbstractWrapper):
 
 
 class NoneWrapper(AbstractWrapper):
-    @property
-    def guess(self):
-        return self
+    pass
 
 
 class Module(AbstractWrapper):
@@ -1479,16 +1450,12 @@ class Module(AbstractWrapper):
             variable.value = function
         return variable
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
 
 class Not(AbstractWrapper):
     value = None
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
-        super(Not, self).__init__(container = container, guess = guess, node = node,
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(Not, self).__init__(container = container, hint = hint, node = node,
             parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
@@ -1515,10 +1482,6 @@ class Number(AbstractWrapper):
             type(value))
         self.value = str(value)
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
     @classmethod
     def parse(cls, node, container = None, parser = None):
         assert node.type == tokens.NUMBER, "Unexpected number type:\n{}\n\n{}".format(repr(node),
@@ -1529,35 +1492,39 @@ class Number(AbstractWrapper):
 class ParentheticalExpression(AbstractWrapper):
     value = None
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
-        super(ParentheticalExpression, self).__init__(container = container, guess = guess, node = node,
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(ParentheticalExpression, self).__init__(container = container, hint = hint, node = node,
             parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
 
 class Period(AbstractWrapper):
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
+    pass
 
 
 class Return(AbstractWrapper):
     value = None
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
-        super(Return, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(Return, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
         containing_function = self.containing_function
         containing_function.returns.append(self)
 
-    @property
-    def guess(self):
-        return self._guess \
-            if self._guess is not None\
-            else self.value.guess if self.value is not None else None
+    def guess(self, expected):
+        guessed = super(Return, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        if self.value is not None:
+            guessed = self.value.guess(expected)
+            if guessed is not None:
+                return guessed
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1609,24 +1576,16 @@ class String(AbstractWrapper):
 #         super(Structure, self).__init__(node, parser = parser)
 #         self.items = items
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
-
 
 # class TaxScalesTree(AbstractWrapper):
 #     pass
-
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
 
 
 class Term(AbstractWrapper):
     items = None
 
-    def __init__(self, container = None, guess = None, items = None, node = None, parser = None):
-        super(Term, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, items = None, node = None, parser = None):
+        super(Term, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(items, list)
         assert len(items) >= 3 and (len(items) & 1)
         self.items = items
@@ -1665,9 +1624,9 @@ class Test(AbstractWrapper):
     test = None
     true_value = None
 
-    def __init__(self, container = None, false_value = None, guess = None, node = None, parser = None, test = None,
+    def __init__(self, container = None, false_value = None, hint = None, node = None, parser = None, test = None,
             true_value = None):
-        super(Test, self).__init__(container = container, guess = guess, node = node, parser = parser)
+        super(Test, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(false_value, AbstractWrapper)
         self.false_value = false_value
         assert isinstance(test, AbstractWrapper)
@@ -1696,15 +1655,11 @@ class Test(AbstractWrapper):
 class Tuple(AbstractWrapper):
     value = None  # Tuple value, as a tuple
 
-    def __init__(self, container = None, guess = None, node = None, parser = None, value = None):
-        super(Tuple, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(Tuple, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(value, tuple), "Unexpected value for tuple: {} of type {}".format(value,
             type(value))
         self.value = value
-
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1736,10 +1691,6 @@ class Type(AbstractWrapper):
         if value is not None:
             self.value = value
 
-    @property
-    def guess(self):
-        return self._guess if self._guess is not None else self
-
 
 # class UniformDictionary(AbstractWrapper):
 #     key = None
@@ -1752,10 +1703,6 @@ class Type(AbstractWrapper):
 #         if value is not None:
 #             self.value = value
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
-
 
 # class UniformIterator(AbstractWrapper):
 #     item = None
@@ -1764,10 +1711,6 @@ class Type(AbstractWrapper):
 #         super(UniformIterator, self).__init__(node, parser = parser)
 #         if item is not None:
 #             self.item = item
-
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
 
 
 # class UniformList(AbstractWrapper):
@@ -1778,28 +1721,30 @@ class Type(AbstractWrapper):
 #         if item is not None:
 #             self.item = item
 
-#     @property
-#     def guess(self):
-#         return self._guess if self._guess is not None else self
-
 
 class Variable(AbstractWrapper):
     name = None
     value = None  # A value wrapper
 
-    def __init__(self, container = None, guess = None, name = None, node = None, parser = None, value = None):
-        super(Variable, self).__init__(container = container, guess = guess, node = node, parser = parser)
+    def __init__(self, container = None, hint = None, name = None, node = None, parser = None, value = None):
+        super(Variable, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert isinstance(name, basestring)
         self.name = name
         if value is not None:
             assert isinstance(value, AbstractWrapper)
             self.value = value
 
-    @property
-    def guess(self):
-        return self._guess \
-            if self._guess is not None\
-            else self.value.guess if self.value is not None else None
+    def guess(self, expected):
+        guessed = super(Variable, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        if self.value is not None:
+            guessed = self.value.guess(expected)
+            if guessed is not None:
+                return guessed
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None, value = None):
@@ -1868,7 +1813,7 @@ class Parser(conv.State):
     Continue = Continue
     country_package = None
     Date = Date
-    # DateTime64 = DateTime64
+    DateTime64 = DateTime64
     # DatedHolder = DatedHolder
     Decorator = Decorator
     driver = None
