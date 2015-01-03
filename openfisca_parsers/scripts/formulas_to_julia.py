@@ -837,9 +837,12 @@ class Term(formulas_parsers_2to3.Term):
             )
 
     def source_julia(self, depth = 0):
+        items = self.items
+        if len(items) == 3 and items[1] == u'//':
+            return u'div({}, {})'.format(items[0].source_julia(depth = depth), items[2].source_julia(depth = depth))
         return u' '.join(
             item if item_index & 1 else item.source_julia(depth = depth)
-            for item_index, item in enumerate(self.items)
+            for item_index, item in enumerate(items)
             )
 
 
