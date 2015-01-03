@@ -207,6 +207,70 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                             ),
                                         ],
                                     )
+                    if method_name == 'get_array':
+                        method_subject = call_subject.subject
+                        if isinstance(method_subject, parser.Variable) and method_subject.name == 'simulation':
+                            assert len(call.positional_arguments) >= 1, call.positional_arguments
+                            assert len(call.named_arguments) == 0, call.named_arguments
+                            requested_variable_string = call.positional_arguments[0]
+                            if isinstance(requested_variable_string, parser.String):
+                                if requested_variable_string.value == variable.name:
+                                    # @at(x, ...)
+                                    return parser.Call(
+                                        container = container,
+                                        # guess = parser.ArrayHandle(parser = parser),  TODO
+                                        parser = parser,
+                                        positional_arguments = [
+                                            parser.String(
+                                                container = container,
+                                                parser = parser,
+                                                value = requested_variable_string.value,
+                                                ),
+                                            ] + call.positional_arguments[1:] + [
+                                            # Add nothing as default value.
+                                            parser.NoneWrapper(
+                                                container = container,
+                                                parser = parser,
+                                                ),
+                                            ],
+                                        subject = parser.Variable(  # TODO: Use Macro or MacroCall.
+                                            name = u'@at',
+                                            parser = parser,
+                                            ),
+                                        )
+                                # y = at("x", ...)
+                                return parser.Assignment(
+                                    container = container,
+                                    left = [
+                                        parser.Variable(container = container, name = variable.name, parser = parser),
+                                        ],
+                                    operator = u'=',
+                                    parser = parser,
+                                    right = [
+                                        parser.Call(
+                                            container = container,
+                                            # guess = parser.ArrayHandle(parser = parser),  TODO
+                                            parser = parser,
+                                            positional_arguments = [
+                                                parser.String(
+                                                    container = container,
+                                                    parser = parser,
+                                                    value = requested_variable_string.value,
+                                                    ),
+                                                ] + call.positional_arguments[1:] + [
+                                                # Add nothing as default value.
+                                                parser.NoneWrapper(
+                                                    container = container,
+                                                    parser = parser,
+                                                    ),
+                                                ],
+                                            subject = parser.Variable(  # TODO: Use function call.
+                                                name = u'at',
+                                                parser = parser,
+                                                ),
+                                            ),
+                                        ],
+                                    )
         return self.__class__(
             container = container,
             guess = self._guess,
