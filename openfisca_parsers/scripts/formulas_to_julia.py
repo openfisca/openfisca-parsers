@@ -32,6 +32,7 @@ import codecs
 import collections
 import datetime
 import importlib
+import inspect
 import lib2to3.pgen2.driver  # , tokenize, token
 import lib2to3.pygram
 import lib2to3.pytree
@@ -71,6 +72,14 @@ julia_file_header = textwrap.dedent(u"""\
     # along with this program.  If not, see <http://www.gnu.org/licenses/>.
     """)
 log = logging.getLogger(app_name)
+name_by_role_by_entity_key_singular = dict(
+    famille = {
+        0: u'CHEF',
+        },
+    foyer_fiscal = {
+        0: u'VOUS',
+        },
+    )
 
 
 class AndExpression(formulas_parsers_2to3.AndExpression):
@@ -1507,6 +1516,65 @@ def main():
             continue
         if issubclass(column_formula_class, formulas.AbstractEntityToEntity):
             # EntityToPerson or PersonToEntity converters
+            if issubclass(column_formula_class, formulas.PersonToEntity):
+                entity = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                if column_formula_class.operation is None:
+                    role = column_formula_class.roles[0]
+                    # print entity.key_singular, role
+                    statement = u"return single_person_in_entity({variable}, get_entity(variable), period, {role})" \
+                        .format(
+                            role = name_by_role_by_entity_key_singular[entity.key_singular][role],
+                            variable = column_formula_class.variable_name,
+                            )
+                elif column_formula_class.operation == u'add':
+                    roles = column_formula_class.roles
+                    # print entity.key_singular, roles
+                    roles = u', [{}]'.format(u', '.join(
+                        name_by_role_by_entity_key_singular[entity.key_singular][role]
+                        for role in roles
+                        )) if roles else u''
+                    statement = u"return sum_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                        roles = roles,
+                        variable = column_formula_class.variable_name,
+                        )
+                elif column_formula_class.operation == u'or':
+                    roles = column_formula_class.roles
+                    # print entity.key_singular, roles
+                    roles = u', [{}]'.format(u', '.join(
+                        name_by_role_by_entity_key_singular[entity.key_singular][role]
+                        for role in roles
+                        )) if roles else u''
+                    statement = u"return any_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                        roles = roles,
+                        variable = column_formula_class.variable_name,
+                        )
+                else:
+                    assert False, u"Unexpected operation"
+            else:
+                roles = column_formula_class.roles
+                # print entity.key_singular, roles
+                roles = u', [{}]'.format(u', '.join(
+                    name_by_role_by_entity_key_singular[entity.key_singular][role]
+                    for role in roles
+                    )) if roles else u''
+                statement = u"return entity_to_person({variable}, period{roles})".format(
+                    roles = roles,
+                    variable = column_formula_class.variable_name,
+                    )
+            julia_source = textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  @calculate({variable}, period)
+                  {statement}
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(),
+                statement = statement,
+                variable = column_formula_class.variable_name,
+                )
+            module_name = inspect.getmodule(column_formula_class).__name__
+            assert module_name.startswith('openfisca_france.model.')
+            module_name = module_name[len('openfisca_france.model.'):]
+            julia_source_by_name_by_module_name.setdefault(module_name, {})[column.name] = julia_source
             continue
 
         if column.name in (
@@ -1522,17 +1590,6 @@ def main():
             # Stop conversion of columns, but write the existing results to Julia files.
             traceback.print_exc()
             break
-        # if issubclass(column_formula_class, formulas.DatedFormula):
-        #     function_functions = []
-        #     for name, value in formula_class_wrapper.value_by_name.iteritems():
-        #         if isinstance(value, parser.Decorator) and value.name == u'dated_function':
-        #             function_function = value.decorated
-        #             assert isinstance(function_function, parser.Function)
-        #             assert name.startswith('function_') or name == 'function', name
-        #             function_functions.append(function_function)
-        # else:
-        #     assert issubclass(column_formula_class, formulas.SimpleFormula), column_formula_class
-        #     function_functions = [formula_class_wrapper.value_by_name['function']]
 
         try:
             julia_source = formula_class_wrapper.juliaize().source_julia(depth = 0)

@@ -425,7 +425,8 @@ class Call(AbstractWrapper):
                         # period.offset(...)
                         return parser.Period(parser = parser)
                 elif method.name == 'period':
-                    if method.subject.guess(parser.Instant) is not None or method.subject.guess(parser.Period) is not None:
+                    if method.subject.guess(parser.Instant) is not None \
+                            or method.subject.guess(parser.Period) is not None:
                         # instant.period or period.period(...)
                         return parser.Period(parser = parser)
 
