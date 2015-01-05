@@ -336,8 +336,8 @@ class Call(formulas_parsers_2to3.Call):
         if isinstance(subject, parser.Attribute):
             method_name = subject.name
             if method_name == 'astype':
-                assert len(self.positional_arguments) == 1, self.positional_arguments
-                argument_string = self.positional_arguments[0].guess(parser.String)
+                assert len(positional_arguments) == 1, positional_arguments
+                argument_string = positional_arguments[0].guess(parser.String)
                 if argument_string is not None:
                     if argument_string.value == u'timedelta64[M]':
                         return parser.Call(
@@ -411,8 +411,8 @@ class Call(formulas_parsers_2to3.Call):
             elif method_name == 'offset':
                 method_subject = subject.subject
                 if method_subject.guess(parser.Instant):
-                    assert len(self.positional_arguments) == 2, self.positional_arguments
-                    delta, unit = self.positional_arguments
+                    assert len(positional_arguments) == 2, positional_arguments
+                    delta, unit = positional_arguments
                     if isinstance(delta, parser.String) and delta.value == 'first-of':
                         if isinstance(unit, parser.String) and unit.value == 'month':
                             return parser.Call(
@@ -439,14 +439,14 @@ class Call(formulas_parsers_2to3.Call):
             if method_name == 'period':
                 method_subject = subject.subject
                 if method_subject.guess(parser.Instant):
-                    assert len(self.positional_arguments) >= 1, self.positional_arguments
-                    unit = self.positional_arguments[0]
+                    assert len(positional_arguments) >= 1, positional_arguments
+                    unit = positional_arguments[0]
                     if isinstance(unit, parser.String) and unit.value == 'month':
                         return parser.Call(
                             container = self.container,
                             hint = parser.Period(parser = parser),
                             parser = parser,
-                            positional_arguments = [method_subject] + self.positional_arguments[1:],
+                            positional_arguments = [method_subject] + positional_arguments[1:],
                             subject = parser.Variable(
                                 name = u'MonthPeriod',
                                 parser = parser,
@@ -457,7 +457,7 @@ class Call(formulas_parsers_2to3.Call):
                             container = self.container,
                             hint = parser.Period(parser = parser),
                             parser = parser,
-                            positional_arguments = [method_subject] + self.positional_arguments[1:],
+                            positional_arguments = [method_subject] + positional_arguments[1:],
                             subject = parser.Variable(
                                 name = u'YearPeriod',
                                 parser = parser,
@@ -471,15 +471,15 @@ class Call(formulas_parsers_2to3.Call):
                     container = self.container,
                     hint = parser.Date(parser = parser),
                     parser = parser,
-                    positional_arguments = self.positional_arguments,
+                    positional_arguments = positional_arguments,
                     subject = parser.Variable(
                         name = u'Date',
                         parser = parser,
                         ),
                     )
             elif function_name == 'datetime64':
-                assert len(self.positional_arguments) == 1, self.positional_arguments
-                argument = self.positional_arguments[0]
+                assert len(positional_arguments) == 1, positional_arguments
+                argument = positional_arguments[0]
                 assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
                 return argument
         return self.__class__(
@@ -487,7 +487,7 @@ class Call(formulas_parsers_2to3.Call):
             hint = self.hint,
             keyword_argument = keyword_argument,
             named_arguments = named_arguments,
-            parser = self.parser,
+            parser = parser,
             positional_arguments = positional_arguments,
             star_argument = star_argument,
             subject = subject,
