@@ -997,73 +997,46 @@ class Function(AbstractWrapper):
         parameters = children[2]
         assert parameters.type == symbols.parameters
         parameters_children = parameters.children
-        assert len(parameters_children) == 3
+        assert 2 <= len(parameters_children) <= 3, \
+            "Unexpected length {} of children in parameters statement:\n{}\n\n{}".format(len(parameters_children),
+                repr(parameters), unicode(parameters).encode('utf-8'))
+
         assert parameters_children[0].type == tokens.LPAR and parameters_children[0].value == '('
 
-        if parameters_children[1].type == tokens.NAME:
-            # Single positional parameter
-            typedargslist = None
-            typedargslist_children = [parameters_children[1]]
-        else:
-            typedargslist = parameters_children[1]
-            assert typedargslist.type == symbols.typedargslist
-            typedargslist_children = typedargslist.children
-
-        typedargslist_child_index = 0
-        while typedargslist_child_index < len(typedargslist_children):
-            typedargslist_child = typedargslist_children[typedargslist_child_index]
-            if typedargslist_child.type == tokens.DOUBLESTAR:
-                typedargslist_child_index += 1
-                typedargslist_child = typedargslist_children[typedargslist_child_index]
-                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
-                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
-                self.keyword_name = typedargslist_child.value
-                self.variable_by_name[self.keyword_name] = parser.Variable(container = self, name = self.keyword_name,
-                    parser = parser)
-                typedargslist_child_index += 1
-                if typedargslist_child_index >= len(typedargslist_children):
-                    break
-                typedargslist_child = typedargslist_children[typedargslist_child_index]
-                assert typedargslist_child.type == tokens.COMMA
-                typedargslist_child_index += 1
-            elif typedargslist_child.type == tokens.STAR:
-                typedargslist_child_index += 1
-                typedargslist_child = typedargslist_children[typedargslist_child_index]
-                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
-                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
-                self.star_name = typedargslist_child.value
-                self.variable_by_name[self.star_name] = parser.Variable(container = self, name = self.star_name,
-                    parser = parser)
-                typedargslist_child_index += 1
-                if typedargslist_child_index >= len(typedargslist_children):
-                    break
-                typedargslist_child = typedargslist_children[typedargslist_child_index]
-                assert typedargslist_child.type == tokens.COMMA
-                typedargslist_child_index += 1
+        if len(parameters_children) == 3:
+            if parameters_children[1].type == tokens.NAME:
+                # Single positional parameter
+                typedargslist = None
+                typedargslist_children = [parameters_children[1]]
             else:
-                assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
-                    repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
-                parameter_name = typedargslist_child.value
-                typedargslist_child_index += 1
-                if typedargslist_child_index >= len(typedargslist_children):
-                    # Last positional parameter
-                    self.positional_parameters.append(parameter_name)
-                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
-                        parser = parser)
-                    break
+                typedargslist = parameters_children[1]
+                assert typedargslist.type == symbols.typedargslist
+                typedargslist_children = typedargslist.children
+
+            typedargslist_child_index = 0
+            while typedargslist_child_index < len(typedargslist_children):
                 typedargslist_child = typedargslist_children[typedargslist_child_index]
-                if typedargslist_child.type == tokens.COMMA:
-                    # Positional parameter
-                    self.positional_parameters.append(parameter_name)
-                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
-                        parser = parser)
-                    typedargslist_child_index += 1
-                elif typedargslist_child.type == tokens.EQUAL:
-                    # Named parameter
+                if typedargslist_child.type == tokens.DOUBLESTAR:
                     typedargslist_child_index += 1
                     typedargslist_child = typedargslist_children[typedargslist_child_index]
-                    self.named_parameters[parameter_name] = parser.parse_value(typedargslist_child, container = self)
-                    self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                    assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                        repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                    self.keyword_name = typedargslist_child.value
+                    self.variable_by_name[self.keyword_name] = parser.Variable(container = self,
+                        name = self.keyword_name, parser = parser)
+                    typedargslist_child_index += 1
+                    if typedargslist_child_index >= len(typedargslist_children):
+                        break
+                    typedargslist_child = typedargslist_children[typedargslist_child_index]
+                    assert typedargslist_child.type == tokens.COMMA
+                    typedargslist_child_index += 1
+                elif typedargslist_child.type == tokens.STAR:
+                    typedargslist_child_index += 1
+                    typedargslist_child = typedargslist_children[typedargslist_child_index]
+                    assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                        repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                    self.star_name = typedargslist_child.value
+                    self.variable_by_name[self.star_name] = parser.Variable(container = self, name = self.star_name,
                         parser = parser)
                     typedargslist_child_index += 1
                     if typedargslist_child_index >= len(typedargslist_children):
@@ -1071,8 +1044,40 @@ class Function(AbstractWrapper):
                     typedargslist_child = typedargslist_children[typedargslist_child_index]
                     assert typedargslist_child.type == tokens.COMMA
                     typedargslist_child_index += 1
+                else:
+                    assert typedargslist_child.type == tokens.NAME, "Unexpected typedargslist child:\n{}\n\n{}".format(
+                        repr(typedargslist_child), unicode(typedargslist_child).encode('utf-8'))
+                    parameter_name = typedargslist_child.value
+                    typedargslist_child_index += 1
+                    if typedargslist_child_index >= len(typedargslist_children):
+                        # Last positional parameter
+                        self.positional_parameters.append(parameter_name)
+                        self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                            parser = parser)
+                        break
+                    typedargslist_child = typedargslist_children[typedargslist_child_index]
+                    if typedargslist_child.type == tokens.COMMA:
+                        # Positional parameter
+                        self.positional_parameters.append(parameter_name)
+                        self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                            parser = parser)
+                        typedargslist_child_index += 1
+                    elif typedargslist_child.type == tokens.EQUAL:
+                        # Named parameter
+                        typedargslist_child_index += 1
+                        typedargslist_child = typedargslist_children[typedargslist_child_index]
+                        self.named_parameters[parameter_name] = parser.parse_value(typedargslist_child,
+                            container = self)
+                        self.variable_by_name[parameter_name] = parser.Variable(container = self, name = parameter_name,
+                            parser = parser)
+                        typedargslist_child_index += 1
+                        if typedargslist_child_index >= len(typedargslist_children):
+                            break
+                        typedargslist_child = typedargslist_children[typedargslist_child_index]
+                        assert typedargslist_child.type == tokens.COMMA
+                        typedargslist_child_index += 1
 
-        assert parameters_children[2].type == tokens.RPAR and parameters_children[2].value == ')'
+        assert parameters_children[-1].type == tokens.RPAR and parameters_children[-1].value == ')'
 
         assert children[3].type == tokens.COLON and children[3].value == ':'
 
