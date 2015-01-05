@@ -465,8 +465,28 @@ class Call(formulas_parsers_2to3.Call):
                             )
         elif isinstance(subject, parser.Variable):
             function_name = subject.name
-            if function_name == 'date':
-                assert len(self.positional_arguments) == 3, self.positional_arguments
+            if function_name == 'and_':
+                assert len(positional_arguments) == 2, positional_arguments
+                left, right = positional_arguments
+                return parser.AndExpression(
+                    container = self.container,
+                    operands = [
+                        parser.ParentheticalExpression(
+                            container = self.container,
+                            parser = parser,
+                            value = left,
+                            ),
+                        parser.ParentheticalExpression(
+                            container = self.container,
+                            parser = parser,
+                            value = right,
+                            ),
+                        ],
+                    operator = u'&',
+                    parser = parser,
+                    )
+            elif function_name == 'date':
+                assert len(positional_arguments) == 3, positional_arguments
                 return parser.Call(
                     container = self.container,
                     hint = parser.Date(parser = parser),
@@ -476,6 +496,38 @@ class Call(formulas_parsers_2to3.Call):
                         name = u'Date',
                         parser = parser,
                         ),
+                    )
+            elif function_name == 'not_':
+                assert len(positional_arguments) == 1, positional_arguments
+                value = positional_arguments[0]
+                return parser.Not(
+                    container = self.container,
+                    value = parser.ParentheticalExpression(
+                        container = self.container,
+                        parser = parser,
+                        value = value,
+                        ),
+                    parser = parser,
+                    )
+            elif function_name == 'or_':
+                assert len(positional_arguments) == 2, positional_arguments
+                left, right = positional_arguments
+                return parser.Expression(
+                    container = self.container,
+                    operands = [
+                        parser.ParentheticalExpression(
+                            container = self.container,
+                            parser = parser,
+                            value = left,
+                            ),
+                        parser.ParentheticalExpression(
+                            container = self.container,
+                            parser = parser,
+                            value = right,
+                            ),
+                        ],
+                    operator = u'|',
+                    parser = parser,
                     )
             elif function_name == 'datetime64':
                 assert len(positional_arguments) == 1, positional_arguments
