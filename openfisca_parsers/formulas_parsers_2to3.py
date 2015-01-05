@@ -588,8 +588,9 @@ class ClassFileInput(AbstractWrapper):
         assert len(children) == 2 and children[0].type == symbols.classdef and children[1].type == tokens.ENDMARKER, \
             "Unexpected node children in:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
         python_module = inspect.getmodule(class_definition)
-        assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
-            "Requested class is defined outside country_package:\n{}".format(source)
+        if parser.country_package is not None:
+            assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
+                "Requested class is defined outside country_package:\n{}".format(source)
         module = parser.python_module_by_name.get(python_module.__name__)
         if module is None:
             parser.python_module_by_name[python_module.__name__] = module = parser.Module(node, python = python_module,
@@ -1121,8 +1122,9 @@ class FunctionFileInput(AbstractWrapper):
         assert len(children) == 2 and children[0].type == symbols.funcdef and children[1].type == tokens.ENDMARKER, \
             "Unexpected node children in:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
         python_module = inspect.getmodule(function)
-        assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
-            "Requested class is defined outside country_package:\n{}".format(source)
+        if parser.country_package is not None:
+            assert python_module.__file__.startswith(os.path.dirname(parser.country_package.__file__)), \
+                "Requested class is defined outside country_package:\n{}".format(source)
         module = parser.python_module_by_name.get(python_module.__name__)
         if module is None:
             parser.python_module_by_name[python_module.__name__] = module = parser.Module(node, python = python_module,
@@ -1893,7 +1895,8 @@ class Parser(conv.State):
     Variable = Variable
 
     def __init__(self, country_package = None, driver = None, tax_benefit_system = None):
-        self.country_package = country_package
+        if country_package is not None:
+            self.country_package = country_package
         self.driver = driver
         self.python_module_by_name = {}
         self.tax_benefit_system = tax_benefit_system
