@@ -588,6 +588,8 @@ class Comparison(formulas_parsers_2to3.Comparison):
             operator = u'==='
         elif operator == u'is not':
             operator = u'!=='
+        elif operator in (u'==', u'>', u'>=', u'<', u'<=', u'!=') and self.guess(self.parser.Array):
+            operator = u'.{}'.format(operator)
         return u'{} {} {}'.format(self.left.source_julia(depth = depth), operator,
             self.right.source_julia(depth = depth))
 

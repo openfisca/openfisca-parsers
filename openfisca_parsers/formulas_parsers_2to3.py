@@ -186,28 +186,27 @@ class ArithmeticExpression(AbstractWrapper):
         return cls(container = container, items = items, node = node, parser = parser)
 
 
-# class Array(AbstractWrapper):
-#     column = None
-#     data_type = None
-#     entity_key_plural = None
-#     is_argument = False
-#     operation = None
-#
-#     def __init__(self, node, column = None, data_type = None, entity_key_plural = None, is_argument = False,
-#             operation = None, parser = None):
-#         super(Array, self).__init__(node, parser = parser)
-#         if column is not None:
-#             self.column = column
-#             assert column.dtype == data_type, str((column.dtype, data_type))
-#             assert column.entity_key_plural == entity_key_plural
-#         if data_type is not None:
-#             self.data_type = data_type
-#         if entity_key_plural is not None:
-#             self.entity_key_plural = entity_key_plural
-#         if is_argument:
-#             self.is_argument = True
-#         if operation is not None:
-#             self.operation = operation
+class Array(AbstractWrapper):
+    """Wrapper for a NumPy array"""
+    cell = None  # Cell wrapper
+    entity_class = None
+    value = None  # array value, as a numpy array
+
+    def __init__(self, cell = None, container = None, entity_class = None, hint = None, node = None, parser = None,
+            value = None):
+        super(Array, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        if cell is not None:
+            assert isinstance(cell, AbstractWrapper), "Unexpected value for cell: {} of type {}".format(cell,
+                type(cell))
+            self.cell = cell
+        if entity_class is not None:
+            assert entity_class in parser.tax_benefit_system.entity_class_by_key_plural.itervalues(), \
+                "Unexpected value for entity class: {} of type {}".format(entity_class, type(entity_class))
+            self.entity_class = entity_class
+        if value is not None:
+            assert isinstance(value, np.ndarray), "Unexpected value for array: {} of type {}".format(value,
+                type(value))
+            self.value = value
 
 
 # class ArrayLength(AbstractWrapper):
@@ -406,7 +405,37 @@ class Call(AbstractWrapper):
             return guessed
 
         parser = self.parser
-        if issubclass(parser.Date, expected):
+        if issubclass(parser.Array, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name in ('calculate', 'get_array'):
+                    assert len(self.positional_arguments) >= 1
+                    variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
+                    if variable_name_wrapper is None:
+                        cell_wrapper = None
+                        entity_class = None
+                    else:
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name_wrapper.value]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                        entity_class = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = entity_class,
+                        parser = parser,
+                        )
+                if method.name == 'compute':
+                    assert len(self.positional_arguments) >= 1
+                    variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
+                    if variable_name_wrapper is None:
+                        column = None
+                    else:
+                        column = parser.tax_benefit_system.column_by_name[variable_name_wrapper.value]
+                    return parser.DatedHolder(
+                        column = column,
+                        parser = parser,
+                        )
+        elif issubclass(parser.Date, expected):
             function = self.subject.guess(parser.Function)
             if function is not None:
                 if function.name == 'date':
@@ -620,6 +649,44 @@ class Comparison(AbstractWrapper):
         assert isinstance(right, AbstractWrapper)
         self.right = right
 
+    def guess(self, expected):
+        guessed = super(Comparison, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            left_array = self.left.guess(parser.Array)
+            if left_array is not None:
+                return parser.Array(
+                    cell = parser.get_cell_wrapper(container = self.container, type = bool),
+                    entity_class = left_array.entity_class,
+                    parser = parser,
+                    )
+            left_dated_holder = self.left.guess(parser.DatedHolder)
+            if left_dated_holder is not None:
+                return parser.Array(
+                    cell = parser.get_cell_wrapper(container = self.container, type = bool),
+                    entity_class = left_dated_holder.entity_class,
+                    parser = parser,
+                    )
+            right_array = self.right.guess(parser.Array)
+            if right_array is not None:
+                return parser.Array(
+                    cell = parser.get_cell_wrapper(container = self.container, type = bool),
+                    entity_class = right_array.entity_class,
+                    parser = parser,
+                    )
+            right_dated_holder = self.right.guess(parser.DatedHolder)
+            if right_dated_holder is not None:
+                return parser.Array(
+                    cell = parser.get_cell_wrapper(container = self.container, type = bool),
+                    entity_class = right_dated_holder.entity_class,
+                    parser = parser,
+                    )
+
+        return None
+
     @classmethod
     def parse(cls, node, container = None, parser = None):
         assert node.type == symbols.comparison, "Unexpected comparison type:\n{}\n\n{}".format(repr(node),
@@ -671,25 +738,32 @@ class Date(AbstractWrapper):
     pass
 
 
-# class DatedHolder(AbstractWrapper):
-#     column = None
-#     data_type = None
-#     entity_key_plural = None
-#     is_argument = False
+class DatedHolder(AbstractWrapper):
+    column = None
+    value = None  # array value, as a numpy array
 
-#     def __init__(self, node, column = None, data_type = None, entity_key_plural = None, is_argument = False,
-#             parser = None):
-#         super(DatedHolder, self).__init__(node, parser = parser)
-#         if column is not None:
-#             self.column = column
-#             assert column.dtype == data_type, str((column.dtype, data_type))
-#             assert column.entity_key_plural == entity_key_plural
-#         if data_type is not None:
-#             self.data_type = data_type
-#         if entity_key_plural is not None:
-#             self.entity_key_plural = entity_key_plural
-#         if is_argument:
-#             self.is_argument = True
+    def __init__(self, column = None, container = None, hint = None, node = None, parser = None, value = None):
+        super(DatedHolder, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        if column is not None:
+            assert column in parser.tax_benefit_system.column_by_name.itervalues(), \
+                "Unexpected value for column: {} of type {}".format(column, type(column))
+            self.column = column
+        if value is not None:
+            assert isinstance(value, np.ndarray), "Unexpected value for array: {} of type {}".format(value,
+                type(value))
+            self.value = value
+
+    @property
+    def cell(self):
+        if self.column is None:
+            return None
+        return self.parser.get_cell_wrapper(container = self.container, type = self.column.dtype)
+
+    @property
+    def entity_class(self):
+        if self.column is None:
+            return None
+        return self.parser.tax_benefit_system.entity_class_by_key_plural[self.column.entity_key_plural]
 
 
 class DateTime64(AbstractWrapper):
@@ -1496,9 +1570,10 @@ class Number(AbstractWrapper):
 
     def __init__(self, container = None, node = None, parser = None, value = None):
         super(Number, self).__init__(container = container, node = node, parser = parser)
-        assert isinstance(value, (int, float, str)), "Unexpected value for number: {} of type {}".format(value,
-            type(value))
-        self.value = str(value)
+        if value is not None:
+            assert isinstance(value, (int, float, str)), "Unexpected value for number: {} of type {}".format(value,
+                type(value))
+            self.value = str(value)
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1830,7 +1905,7 @@ class FormulaFunction(Function):
 
 class Parser(conv.State):
     AndExpression = AndExpression
-    # Array = Array
+    Array = Array
     # ArrayLength = ArrayLength
     ArithmeticExpression = ArithmeticExpression
     Assert = Assert
@@ -1845,7 +1920,7 @@ class Parser(conv.State):
     country_package = None
     Date = Date
     DateTime64 = DateTime64
-    # DatedHolder = DatedHolder
+    DatedHolder = DatedHolder
     Decorator = Decorator
     driver = None
     # Entity = Entity
@@ -1900,6 +1975,16 @@ class Parser(conv.State):
         self.driver = driver
         self.python_module_by_name = {}
         self.tax_benefit_system = tax_benefit_system
+
+    def get_cell_wrapper(self, container = None, type = None):
+        wrapper_class = {
+            np.bool: self.Number,
+            np.float32: self.Number,
+            np.int16: self.Number,
+            np.int32: self.Number,
+            'datetime64[D]': self.DateTime64,
+            }[type]
+        return wrapper_class(container = container, parser = self)
 
     def parse_power(self, node, container = None):
         assert isinstance(node, lib2to3.pytree.Base), "Invalid node:\n{}\n\n{}".format(repr(node),
