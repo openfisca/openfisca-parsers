@@ -1385,6 +1385,7 @@ class Module(AbstractWrapper):
             #     value = parser.UniformList(parser = parser, value = parser.Number(parser = parser, value = x))),
             ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser),
             floor = parser.Variable(container = self, name = u'floor', parser = parser),
+            fromiter = parser.Variable(container = self, name = u'fromiter', parser = parser),
             fsolve = parser.Variable(container = self, name = u'fsolve', parser = parser),
             hasattr = parser.Variable(container = self, name = u'hasattr', parser = parser),
             holidays = parser.Variable(container = self, name = u'holidays', parser = parser),
@@ -1433,6 +1434,7 @@ class Module(AbstractWrapper):
             where = parser.Variable(container = self, name = u'where', parser = parser),
             xor_ = parser.Variable(container = self, name = u'xor_', parser = parser),
             zeros = parser.Variable(container = self, name = u'zeros', parser = parser),
+            zone_apl_by_depcom = parser.Variable(container = self, name = u'zone_apl_by_depcom', parser = parser),
             ).iteritems()))
 
     @property
@@ -1697,6 +1699,19 @@ class Tuple(AbstractWrapper):
         return cls(container = container, node = node, parser = parser, value = tuple(items))
 
 
+class TupleGenerator(AbstractWrapper):
+    # TODO: Used only by zone_apl
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.testlist_gexp, "Unexpected tuple type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+
+        # TODO: Used only by zone_apl
+
+        return cls(container = container, node = node, parser = parser)
+
+
 class Type(AbstractWrapper):
     value = None
 
@@ -1870,6 +1885,7 @@ class Parser(conv.State):
     Term = Term
     Test = Test
     Tuple = Tuple
+    TupleGenerator = TupleGenerator
     Type = Type
     # UniformDictionary = UniformDictionary
     # UniformIterator = UniformIterator
@@ -1954,6 +1970,9 @@ class Parser(conv.State):
                 elif statement.type == symbols.expr_stmt:
                     assignment = self.Assignment.parse(statement, container = container, parser = self)
                     body.append(assignment)
+                elif statement.type == symbols.global_stmt:
+                    # TODO: Used only by zone_apl.
+                    pass
                 elif statement.type == symbols.power:
                     power = self.parse_power(statement, container = container)
                     body.append(power)
@@ -1971,8 +1990,11 @@ class Parser(conv.State):
                     assert False, "Unexpected simple statement in suite:\n{}\n\n{}".format(repr(child),
                         unicode(child).encode('utf-8'))
                 assert child.children[1].type == tokens.NEWLINE and child.children[1].value == '\n'
+            elif child.type == symbols.with_stmt:
+                # TODO: Used only by zone_apl.
+                pass
             elif child.type in (tokens.DEDENT, tokens.INDENT, tokens.NEWLINE):
-                continue
+                pass
             else:
                 assert False, "Unexpected statement in suite:\n{}\n\n{}".format(repr(child),
                     unicode(child).encode('utf-8'))
@@ -2034,6 +2056,9 @@ class Parser(conv.State):
 
         if node.type == symbols.testlist:
             return self.Tuple.parse(node, container = container, parser = self)
+
+        if node.type == symbols.testlist_gexp:
+            return self.TupleGenerator.parse(node, container = container, parser = self)
 
         if node.type == tokens.NAME:
             name = node.value
