@@ -1353,10 +1353,6 @@ class Logger(AbstractWrapper):
 #     pass
 
 
-class NoneWrapper(AbstractWrapper):
-    pass
-
-
 class Module(AbstractWrapper):
     python = None
     variable_by_name = None
@@ -1463,6 +1459,10 @@ class Module(AbstractWrapper):
             assert isinstance(function, parser.Function), function
             variable.value = function
         return variable
+
+
+class NoneWrapper(AbstractWrapper):
+    pass
 
 
 class Not(AbstractWrapper):
