@@ -1575,11 +1575,10 @@ def main():
                 if column_formula_class.operation is None:
                     role = column_formula_class.roles[0]
                     # print entity.key_singular, role
-                    statement = u"return single_person_in_entity({variable}, get_entity(variable), period, {role})" \
-                        .format(
-                            role = name_by_role_by_entity_key_singular[entity.key_singular][role],
-                            variable = column_formula_class.variable_name,
-                            )
+                    expression = u"single_person_in_entity({variable}, get_entity(variable), period, {role})".format(
+                        role = name_by_role_by_entity_key_singular[entity.key_singular][role],
+                        variable = column_formula_class.variable_name,
+                        )
                 elif column_formula_class.operation == u'add':
                     roles = column_formula_class.roles
                     # print entity.key_singular, roles
@@ -1587,7 +1586,7 @@ def main():
                         name_by_role_by_entity_key_singular[entity.key_singular][role]
                         for role in roles
                         )) if roles else u''
-                    statement = u"return sum_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                    expression = u"sum_person_in_entity({variable}, get_entity(variable), period{roles})".format(
                         roles = roles,
                         variable = column_formula_class.variable_name,
                         )
@@ -1598,7 +1597,7 @@ def main():
                         name_by_role_by_entity_key_singular[entity.key_singular][role]
                         for role in roles
                         )) if roles else u''
-                    statement = u"return any_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                    expression = u"any_person_in_entity({variable}, get_entity(variable), period{roles})".format(
                         roles = roles,
                         variable = column_formula_class.variable_name,
                         )
@@ -1611,18 +1610,18 @@ def main():
                     name_by_role_by_entity_key_singular[entity.key_singular][role]
                     for role in roles
                     )) if roles else u''
-                statement = u"return entity_to_person({variable}, period{roles})".format(
+                expression = u"entity_to_person({variable}, period{roles})".format(
                     roles = roles,
                     variable = column_formula_class.variable_name,
                     )
             julia_source = textwrap.dedent(u"""
                 {call} do simulation, variable, period
                   @calculate({variable}, period)
-                  {statement}
+                  return period, {expression}
                 end
                 """).format(
                 call = parser.source_julia_column_without_function(),
-                statement = statement,
+                expression = expression,
                 variable = column_formula_class.variable_name,
                 )
             module_name = inspect.getmodule(column_formula_class).__name__
