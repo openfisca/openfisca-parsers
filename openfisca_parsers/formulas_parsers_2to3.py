@@ -151,6 +151,48 @@ class AndExpression(AbstractWrapper):
         return cls(container = container, node = node, parser = parser, operands = operands, operator = operator_symbol)
 
 
+class AndTest(AbstractWrapper):
+    operands = None
+    operator = None
+
+    def __init__(self, container = None, hint = None, node = None, operands = None, operator = None, parser = None):
+        super(AndTest, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert isinstance(operands, list)
+        self.operands = operands
+        assert isinstance(operator, basestring)
+        self.operator = operator
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.and_test, "Unexpected and test type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) >= 3 and (len(children) & 1), \
+            "Unexpected length {} of children in and expression:\n{}\n\n{}".format(len(children), repr(node),
+            unicode(node).encode('utf-8'))
+
+        child_index = 0
+        operands = []
+        operator_symbol = None
+        while child_index < len(children):
+            child = children[child_index]
+            operands.append(parser.parse_value(child, container = container))
+            child_index += 1
+            if child_index >= len(children):
+                break
+            operator = children[child_index]
+            assert operator.type == tokens.NAME and operator.value == u'and', \
+                "Unexpected operator type:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            if operator_symbol is None:
+                operator_symbol = operator.value
+            else:
+                assert operator_symbol == operator.value, "Unexpected operator:\n{}\n\n{}".format(repr(node),
+                    unicode(node).encode('utf-8'))
+            child_index += 1
+
+        return cls(container = container, node = node, parser = parser, operands = operands, operator = operator_symbol)
+
+
 class ArithmeticExpression(AbstractWrapper):
     items = None
 
@@ -343,16 +385,44 @@ class Attribute(AbstractWrapper):
             return guessed
 
         parser = self.parser
-        if self.name == 'date':
-            if issubclass(parser.Date, expected):
+        if issubclass(parser.CompactNode, expected):
+            compact_node = self.subject.guess(parser.CompactNode)
+            if compact_node is not None:
+                # TODO: Hande cotisations_employeur & cotisations_salarie.
+                if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
+                    child_json = compact_node.value['children'][self.name]
+                    child_type = child_json['@type']
+                    if child_type == u'Node':
+                        return parser.CompactNode(is_reference = compact_node.is_reference, name = self.name,
+                            parent = compact_node, parser = parser, value = child_json)
+        elif issubclass(parser.Date, expected):
+            if self.name == 'date':
                 period = self.subject.guess(parser.Period)
                 if period is not None:
                     return parser.Date(parser = parser)
-        elif self.name == 'start':
-            if issubclass(parser.Instant, expected):
-                period = self.subject.guess(parser.Period)
-                if period is not None:
-                    return parser.Instant(parser = parser)
+        elif issubclass(parser.Instant, expected):
+            if self.name == 'start':
+                    period = self.subject.guess(parser.Period)
+                    if period is not None:
+                        return parser.Instant(parser = parser)
+        elif issubclass(parser.Number, expected):
+            compact_node_wrapper = self.subject.guess(parser.CompactNode)
+            if compact_node_wrapper is not None:
+                # TODO: Hande cotisations_employeur & cotisations_salarie.
+                if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
+                    child_json = compact_node_wrapper.value['children'][self.name]
+                    child_type = child_json['@type']
+                    if child_type == u'Parameter':
+                        return parser.Number(parser = parser)
+        elif issubclass(parser.TaxScale, expected):
+            compact_node_wrapper = self.subject.guess(parser.CompactNode)
+            if compact_node_wrapper is not None:
+                # TODO: Hande cotisations_employeur & cotisations_salarie.
+                if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
+                    child_json = compact_node_wrapper.value['children'][self.name]
+                    child_type = child_json['@type']
+                    if child_type == u'Scale':
+                        return parser.TaxScale(parser = parser)
 
         return None
 
@@ -435,6 +505,43 @@ class Call(AbstractWrapper):
                         column = column,
                         parser = parser,
                         )
+                if method.name == 'filter_role':
+                    assert len(self.positional_arguments) >= 1
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                        entity_class = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = parser.entity_class,
+                        parser = parser,
+                        )
+                if method.name in ('any_by_roles', 'sum_by_entity'):
+                    assert len(self.positional_arguments) == 1, self.positional_arguments
+                    assert len(self.named_arguments) == 0, self.named_arguments
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                        entity_class = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = parser.entity_class,
+                        parser = parser,
+                        )
         elif issubclass(parser.Date, expected):
             function = self.subject.guess(parser.Function)
             if function is not None:
@@ -446,6 +553,26 @@ class Call(AbstractWrapper):
                 if method.name == 'offset':
                     if method.subject.guess(parser.Instant) is not None:
                         return parser.Instant(parser = parser)
+        elif issubclass(parser.CompactNode, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name == 'legislation_at':
+                    method_subject = method.subject
+                    if method_subject.guess(parser.Simulation):
+                        positional_arguments = self.positional_arguments
+                        assert len(positional_arguments) == 1, positional_arguments
+                        instant = positional_arguments[0].guess(parser.Instant)
+                        if instant is not None:
+                            named_arguments = self.named_arguments
+                            assert len(named_arguments) <= 1, named_arguments
+                            reference = named_arguments.get('reference')
+                            assert reference is None
+                            return parser.CompactNode(
+                                is_reference = bool(reference),
+                                generator = self,
+                                parser = parser,
+                                value = parser.tax_benefit_system.legislation_json,
+                                )
         elif issubclass(parser.Period, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
@@ -632,6 +759,51 @@ class ClassFileInput(AbstractWrapper):
             if node is not None:
                 print "An exception occurred in node:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
             raise
+
+
+class CompactNode(AbstractWrapper):
+    generator = None # The call to "simulation.legislation_at(period)" that has generated this hint wrapper.
+    is_reference = True
+    name = None
+    parent = None  # Parent LawNode wrapper
+    value = None  # Law node JSON
+
+    def __init__(self, generator = None, is_reference = False, name = None, parent = None, parser = None, value = None):
+        super(CompactNode, self).__init__(parser = parser)
+        assert (generator is None) is not (parent is None)  # generator xor parent
+        if generator is not None:
+            assert isinstance(generator, AbstractWrapper)
+            self.generator = generator
+        if not is_reference:
+            self.is_reference = False
+        assert (parent is None) == (name is None), str((name, parent))
+        if name is not None:
+            self.name = name
+        if parent is not None:
+            assert isinstance(parent, CompactNode)
+            self.parent = parent
+        if value is not None:
+            assert isinstance(value, dict)
+            self.value = value
+
+    def iter_names(self):
+        parent = self.parent
+        if parent is not None:
+            for ancestor_name in parent.iter_names():
+                yield ancestor_name
+        name = self.name
+        if name is not None:
+            yield name
+
+    @property
+    def path(self):
+        return '.'.join(self.iter_names())
+
+    @property
+    def root_generator(self):
+        if self.generator is None:
+            return self.parent.root_generator
+        return self.generator
 
 
 class Comparison(AbstractWrapper):
@@ -1363,9 +1535,10 @@ class Lambda(AbstractWrapper):
 class LawNode(AbstractWrapper):
     is_reference = True
     name = None
-    parent = None  # Parent LawNode instance
+    parent = None  # Parent LawNode wrapper
+    value = None  # Law node JSON
 
-    def __init__(self, is_reference = False, name = None, parent = None, parser = None):
+    def __init__(self, is_reference = False, name = None, parent = None, parser = None, value = None):
         super(LawNode, self).__init__(parser = parser)
         if not is_reference:
             self.is_reference = False
@@ -1375,6 +1548,9 @@ class LawNode(AbstractWrapper):
         if parent is not None:
             assert isinstance(parent, LawNode)
             self.parent = parent
+        if value is not None:
+            assert isinstance(value, dict)
+            self.value = value
 
     def iter_names(self):
         parent = self.parent
@@ -1471,7 +1647,7 @@ class Module(AbstractWrapper):
                 value = parser.Type(parser = parser, value = np.int32)),
             izip = parser.Variable(container = self, name = u'izip', parser = parser),
             law = parser.Variable(container = self, name = u'law', parser = parser,
-                value = parser.LawNode(parser = parser)),
+                value = parser.LawNode(parser = parser, value = parser.tax_benefit_system.legislation_json)),
             len = parser.Variable(container = self, name = u'len', parser = parser),
             log = parser.Variable(container = self, name = u'log', parser = parser,
                 value = parser.Logger(parser = parser)),
@@ -1543,11 +1719,11 @@ class NoneWrapper(AbstractWrapper):
     pass
 
 
-class Not(AbstractWrapper):
+class NotTest(AbstractWrapper):
     value = None
 
     def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
-        super(Not, self).__init__(container = container, hint = hint, node = node,
+        super(NotTest, self).__init__(container = container, hint = hint, node = node,
             parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
@@ -1668,6 +1844,10 @@ class String(AbstractWrapper):
 #     def __init__(self, node, items = None, parser = None):
 #         super(Structure, self).__init__(node, parser = parser)
 #         self.items = items
+
+
+class TaxScale(AbstractWrapper):
+    pass
 
 
 # class TaxScalesTree(AbstractWrapper):
@@ -1905,6 +2085,7 @@ class FormulaFunction(Function):
 
 class Parser(conv.State):
     AndExpression = AndExpression
+    AndTest = AndTest
     Array = Array
     # ArrayLength = ArrayLength
     ArithmeticExpression = ArithmeticExpression
@@ -1915,6 +2096,7 @@ class Parser(conv.State):
     Class = Class
     ClassFileInput = ClassFileInput
     column = None  # Formula column
+    CompactNode = CompactNode
     Comparison = Comparison
     Continue = Continue
     country_package = None
@@ -1948,7 +2130,7 @@ class Parser(conv.State):
     # Math = Math
     Module = Module
     NoneWrapper = NoneWrapper
-    Not = Not
+    NotTest = NotTest
     Number = Number
     ParentheticalExpression = ParentheticalExpression
     Period = Period
@@ -1958,6 +2140,7 @@ class Parser(conv.State):
     String = String
     # Structure = Structure
     tax_benefit_system = None
+    TaxScale = TaxScale
     # TaxScalesTree = TaxScalesTree
     Term = Term
     Test = Test
@@ -1975,6 +2158,12 @@ class Parser(conv.State):
         self.driver = driver
         self.python_module_by_name = {}
         self.tax_benefit_system = tax_benefit_system
+
+    @property
+    def entity_class(self):
+        if self.column is None:
+            return None
+        return self.tax_benefit_system.entity_class_by_key_plural[self.column.entity_key_plural]
 
     def get_cell_wrapper(self, container = None, type = None):
         wrapper_class = {
@@ -2097,6 +2286,9 @@ class Parser(conv.State):
         if node.type == symbols.and_expr:
             return self.AndExpression.parse(node, container = container, parser = self)
 
+        if node.type == symbols.and_test:
+            return self.AndTest.parse(node, container = container, parser = self)
+
         if node.type == symbols.arith_expr:
             return self.ArithmeticExpression.parse(node, container = container, parser = self)
 
@@ -2131,7 +2323,7 @@ class Parser(conv.State):
             return self.Lambda.parse(node, container = container, parser = self)
 
         if node.type == symbols.not_test:
-            return self.Not.parse(node, container = container, parser = self)
+            return self.NotTest.parse(node, container = container, parser = self)
 
         if node.type == symbols.power:
             return self.parse_power(node, container = container)
