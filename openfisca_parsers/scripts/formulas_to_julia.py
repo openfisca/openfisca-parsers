@@ -400,28 +400,81 @@ class Attribute(formulas_parsers_2to3.Attribute):
         parser = self.parser
         subject = self.subject.juliaize()
         parent_node = subject.guess(parser.CompactNode)
-        if parent_node is not None and self.guess(parser.CompactNode) is None:
-            # Current attribute is a leaf in the tree of compact nodes.
-            call = parent_node.root_generator.juliaize()
-            function = call.subject
-            assert isinstance(function, parser.Variable) and function.name == u'legislation_at'
-            # Insert path of node in "legislation_at(simulation, path, period, ...)" call.
-            positional_arguments = call.positional_arguments[:]
-            positional_arguments.insert(1, parser.String(
-                container = self.container,
-                parser = parser,
-                value = u'{}.{}'.format(parent_node.path, self.name),
-                ))
-            return parser.Call(
-                container = self.container,
-                hint = self.hint,
-                keyword_argument = call.keyword_argument,
-                named_arguments = call.named_arguments,
-                parser = parser,
-                positional_arguments = positional_arguments,
-                star_argument = call.star_argument,
-                subject = call.subject,
-                )
+        if parent_node is not None:
+            # TODO: Hande cotisations_employeur & cotisations_salarie.
+            if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
+                node_value = parent_node.value['children'][self.name]
+                node_type = node_value['@type']
+                if node_type == u'Node':
+                    hint = parser.CompactNode(
+                        is_reference = parent_node.is_reference,
+                        name = unicode(self.name),
+                        parent = parent_node,
+                        parser = parser,
+                        value = node_value,
+                        )
+                elif node_type == u'Parameter':
+                    hint = parser.Number(
+                        parser = parser,
+                        )
+                else:
+                    assert node_type == u'Scale'
+                    hint = parser.TaxScale(
+                        parser = parser,
+                        )
+                if isinstance(subject, parser.Call):
+                    function = subject.subject
+                    if isinstance(function, parser.Variable) and function.name == u'legislation_at':
+                        # Insert path of node in "legislation_at(simulation, path, period, ...)" call and eventually rename
+                        # "legislation_at" to "parameter_at" or "tax_scale_at".
+                        positional_arguments = subject.positional_arguments[:]
+                        if isinstance(positional_arguments[1], parser.String):
+                            positional_arguments[1] = parser.String(
+                                container = self.container,
+                                parser = parser,
+                                value = u'{}.{}'.format(positional_arguments[1].value, self.name),
+                                )
+                        else:
+                            positional_arguments.insert(1, parser.String(
+                                container = self.container,
+                                parser = parser,
+                                value = unicode(self.name),
+                                ))
+                        return parser.Call(
+                            container = self.container,
+                            hint = hint,
+                            keyword_argument = subject.keyword_argument,
+                            named_arguments = subject.named_arguments,
+                            parser = parser,
+                            positional_arguments = positional_arguments,
+                            star_argument = subject.star_argument,
+                            subject = parser.Variable(
+                                container = self.container,
+                                name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
+                                    if node_type == u'Parameter' else u'tax_rate_at'),
+                                parser = parser,
+                                ),
+                            )
+                # Generate "legislation_at(x, path)".
+                return parser.Call(
+                    container = self.container,
+                    hint = hint,
+                    parser = parser,
+                    positional_arguments = [
+                        subject,
+                        parser.String(
+                            container = self.container,
+                            parser = parser,
+                            value = unicode(self.name),
+                            )
+                        ],
+                    subject = parser.Variable(
+                        container = self.container,
+                        name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
+                            if node_type == u'Parameter' else u'tax_rate_at'),
+                        parser = parser,
+                        ),
+                    )
         return self.__class__(
             container = self.container,
             hint = self.hint,
@@ -536,7 +589,11 @@ class Call(formulas_parsers_2to3.Call):
                         reference = named_arguments.get('reference')
                         return parser.Call(
                             container = self.container,
-                            hint = self.hint,  # Note: Call hint is a compact node.
+                            hint = parser.CompactNode(
+                                is_reference = bool(reference),
+                                parser = parser,
+                                value = parser.tax_benefit_system.legislation_json,
+                                ),
                             named_arguments = dict(reference = reference) if reference is not None else None,
                             parser = parser,
                             positional_arguments = [method_subject, positional_arguments[0]],
@@ -631,6 +688,28 @@ class Call(formulas_parsers_2to3.Call):
                     positional_arguments = positional_arguments,
                     subject = parser.Variable(
                         name = u'Date',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == 'max_':
+                return parser.Call(
+                    container = self.container,
+                    hint = parser.Date(parser = parser),
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'max',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == 'min_':
+                return parser.Call(
+                    container = self.container,
+                    hint = parser.Date(parser = parser),
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'min',
                         parser = parser,
                         ),
                     )

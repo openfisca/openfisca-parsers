@@ -569,7 +569,6 @@ class Call(AbstractWrapper):
                             assert reference is None
                             return parser.CompactNode(
                                 is_reference = bool(reference),
-                                generator = self,
                                 parser = parser,
                                 value = parser.tax_benefit_system.legislation_json,
                                 )
@@ -762,18 +761,13 @@ class ClassFileInput(AbstractWrapper):
 
 
 class CompactNode(AbstractWrapper):
-    generator = None # The call to "simulation.legislation_at(period)" that has generated this hint wrapper.
     is_reference = True
     name = None
     parent = None  # Parent LawNode wrapper
     value = None  # Law node JSON
 
-    def __init__(self, generator = None, is_reference = False, name = None, parent = None, parser = None, value = None):
+    def __init__(self, is_reference = False, name = None, parent = None, parser = None, value = None):
         super(CompactNode, self).__init__(parser = parser)
-        assert (generator is None) is not (parent is None)  # generator xor parent
-        if generator is not None:
-            assert isinstance(generator, AbstractWrapper)
-            self.generator = generator
         if not is_reference:
             self.is_reference = False
         assert (parent is None) == (name is None), str((name, parent))
@@ -798,12 +792,6 @@ class CompactNode(AbstractWrapper):
     @property
     def path(self):
         return '.'.join(self.iter_names())
-
-    @property
-    def root_generator(self):
-        if self.generator is None:
-            return self.parent.root_generator
-        return self.generator
 
 
 class Comparison(AbstractWrapper):
