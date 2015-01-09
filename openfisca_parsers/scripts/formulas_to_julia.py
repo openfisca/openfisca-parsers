@@ -135,8 +135,9 @@ class ArithmeticExpression(formulas_parsers_2to3.ArithmeticExpression):
             )
 
     def source_julia(self, depth = 0):
+        array_expression = self.guess(self.parser.Array) is not None
         return u' '.join(
-            item if item_index & 1 else item.source_julia(depth = depth)
+            (u'.{}'.format(item) if array_expression else item) if item_index & 1 else item.source_julia(depth = depth)
             for item_index, item in enumerate(self.items)
             )
 
@@ -403,7 +404,11 @@ class Attribute(formulas_parsers_2to3.Attribute):
         if parent_node is not None:
             # TODO: Hande cotisations_employeur & cotisations_salarie.
             if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
-                node_value = parent_node.value['children'][self.name]
+                node_value = parent_node.value['children'].get(self.name)
+                if node_value is None:
+                    # Dirty hack for tax_hab formula.
+                    assert self.name in (u'taux_plein', u'taux_reduit'), self.name
+                    node_value = parent_node.value['children']['taux']
                 node_type = node_value['@type']
                 if node_type == u'Node':
                     hint = parser.CompactNode(
@@ -425,8 +430,8 @@ class Attribute(formulas_parsers_2to3.Attribute):
                 if isinstance(subject, parser.Call):
                     function = subject.subject
                     if isinstance(function, parser.Variable) and function.name == u'legislation_at':
-                        # Insert path of node in "legislation_at(simulation, path, period, ...)" call and eventually rename
-                        # "legislation_at" to "parameter_at" or "tax_scale_at".
+                        # Insert path of node in "legislation_at(simulation, path, period, ...)" call and eventually
+                        # rename "legislation_at" to "parameter_at" or "tax_scale_at".
                         positional_arguments = subject.positional_arguments[:]
                         if isinstance(positional_arguments[1], parser.String):
                             positional_arguments[1] = parser.String(
@@ -451,7 +456,7 @@ class Attribute(formulas_parsers_2to3.Attribute):
                             subject = parser.Variable(
                                 container = self.container,
                                 name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
-                                    if node_type == u'Parameter' else u'tax_rate_at'),
+                                    if node_type == u'Parameter' else u'tax_scale_at'),
                                 parser = parser,
                                 ),
                             )
@@ -471,7 +476,7 @@ class Attribute(formulas_parsers_2to3.Attribute):
                     subject = parser.Variable(
                         container = self.container,
                         name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
-                            if node_type == u'Parameter' else u'tax_rate_at'),
+                            if node_type == u'Parameter' else u'tax_scale_at'),
                         parser = parser,
                         ),
                     )
@@ -490,7 +495,38 @@ class Attribute(formulas_parsers_2to3.Attribute):
             )
 
 
+class Boolean(formulas_parsers_2to3.Boolean):
+    def juliaize(self):
+        return self
+
+    def source_julia(self, depth = 0):
+        return u'true' if self.value else u'false'
+
+
 class Call(formulas_parsers_2to3.Call):
+    def guess(self, expected):
+        guessed = super(Call, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name in (u'max', u'min'):
+                    for argument in self.positional_arguments:
+                        array = argument.guess(parser.Array)
+                        if array is not None:
+                            return parser.Array(
+                                cell = parser.Number(
+                                    parser = parser,
+                                    ),
+                                entity_class = array.entity_class,
+                                parser = parser,
+                                )
+
+        return None
+
     def juliaize(self):
         parser = self.parser
         keyword_argument = self.keyword_argument.juliaize() if self.keyword_argument is not None else None
@@ -694,7 +730,7 @@ class Call(formulas_parsers_2to3.Call):
             elif function_name == 'max_':
                 return parser.Call(
                     container = self.container,
-                    hint = parser.Date(parser = parser),
+                    hint = self.hint,
                     parser = parser,
                     positional_arguments = positional_arguments,
                     subject = parser.Variable(
@@ -705,7 +741,7 @@ class Call(formulas_parsers_2to3.Call):
             elif function_name == 'min_':
                 return parser.Call(
                     container = self.container,
-                    hint = parser.Date(parser = parser),
+                    hint = self.hint,
                     parser = parser,
                     positional_arguments = positional_arguments,
                     subject = parser.Variable(
@@ -1196,8 +1232,9 @@ class Term(formulas_parsers_2to3.Term):
         items = self.items
         if len(items) == 3 and items[1] == u'//':
             return u'div({}, {})'.format(items[0].source_julia(depth = depth), items[2].source_julia(depth = depth))
+        array_expression = self.guess(self.parser.Array) is not None
         return u' '.join(
-            item if item_index & 1 else item.source_julia(depth = depth)
+            (u'.{}'.format(item) if array_expression else item) if item_index & 1 else item.source_julia(depth = depth)
             for item_index, item in enumerate(items)
             )
 
@@ -1340,6 +1377,7 @@ class Parser(formulas_parsers_2to3.Parser):
     Assert = Assert
     Assignment = Assignment
     Attribute = Attribute
+    Boolean = Boolean
     Call = Call
     Class = Class
     Comparison = Comparison

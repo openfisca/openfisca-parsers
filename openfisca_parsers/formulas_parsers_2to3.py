@@ -54,6 +54,9 @@ lib2to3.pytree.Leaf.__unicode__ = lambda self: self.prefix.decode('utf-8') + (se
     )
 
 
+# Abstract Wrappers
+
+
 class AbstractWrapper(object):
     container = None  # The wrapper directly containing this wrapper
     hint = None  # A wrapper that is the hinted type of this wrapper
@@ -109,6 +112,9 @@ class AbstractWrapper(object):
         return None
 
 
+# Level-1 Wrappers
+
+
 class AndExpression(AbstractWrapper):
     operands = None
     operator = None
@@ -119,6 +125,26 @@ class AndExpression(AbstractWrapper):
         self.operands = operands
         assert isinstance(operator, basestring)
         self.operator = operator
+
+    def guess(self, expected):
+        guessed = super(AndExpression, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            for operand in self.operands:
+                array = operand.guess(parser.Array)
+                if array is not None:
+                    return parser.Array(
+                        cell = parser.Boolean(
+                            parser = parser,
+                            ),
+                        entity_class = array.entity_class,
+                        parser = parser,
+                        )
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -201,6 +227,28 @@ class ArithmeticExpression(AbstractWrapper):
         assert isinstance(items, list)
         assert len(items) >= 3 and (len(items) & 1)
         self.items = items
+
+    def guess(self, expected):
+        guessed = super(ArithmeticExpression, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            for index, item in enumerate(self.items):
+                if index & 1:
+                    continue
+                array = item.guess(parser.Array)
+                if array is not None:
+                    return parser.Array(
+                        cell = parser.Number(
+                            parser = parser,
+                            ),
+                        entity_class = array.entity_class,
+                        parser = parser,
+                        )
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -476,74 +524,88 @@ class Call(AbstractWrapper):
 
         parser = self.parser
         if issubclass(parser.Array, expected):
-            method = self.subject.guess(parser.Attribute)
-            if method is not None:
-                if method.name in ('calculate', 'get_array'):
-                    assert len(self.positional_arguments) >= 1
-                    variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
-                    if variable_name_wrapper is None:
-                        cell_wrapper = None
-                        entity_class = None
-                    else:
-                        tax_benefit_system = parser.tax_benefit_system
-                        column = tax_benefit_system.column_by_name[variable_name_wrapper.value]
-                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
-                        entity_class = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
-                    return parser.Array(
-                        cell = cell_wrapper,
-                        entity_class = entity_class,
-                        parser = parser,
-                        )
-                if method.name == 'compute':
-                    assert len(self.positional_arguments) >= 1
-                    variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
-                    if variable_name_wrapper is None:
-                        column = None
-                    else:
-                        column = parser.tax_benefit_system.column_by_name[variable_name_wrapper.value]
-                    return parser.DatedHolder(
-                        column = column,
-                        parser = parser,
-                        )
-                if method.name == 'filter_role':
-                    assert len(self.positional_arguments) >= 1
-                    variable = self.positional_arguments[0].guess(parser.Variable)
-                    if variable is None:
-                        cell_wrapper = None
-                        entity_class = None
-                    else:
-                        variable_name = variable.name
-                        if variable_name.endswith(u'_holder'):
-                            variable_name = variable_name[:-len(u'_holder')]
-                        tax_benefit_system = parser.tax_benefit_system
-                        column = tax_benefit_system.column_by_name[variable_name]
-                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
-                    return parser.Array(
-                        cell = cell_wrapper,
-                        entity_class = parser.entity_class,
-                        parser = parser,
-                        )
-                if method.name in ('any_by_roles', 'sum_by_entity'):
-                    assert len(self.positional_arguments) == 1, self.positional_arguments
-                    assert len(self.named_arguments) == 0, self.named_arguments
-                    variable = self.positional_arguments[0].guess(parser.Variable)
-                    if variable is None:
-                        cell_wrapper = None
-                        entity_class = None
-                    else:
-                        variable_name = variable.name
-                        if variable_name.endswith(u'_holder'):
-                            variable_name = variable_name[:-len(u'_holder')]
-                        tax_benefit_system = parser.tax_benefit_system
-                        column = tax_benefit_system.column_by_name[variable_name]
-                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
-                    return parser.Array(
-                        cell = cell_wrapper,
-                        entity_class = parser.entity_class,
-                        parser = parser,
-                        )
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name in (u'max_', u'min_'):
+                    for argument in self.positional_arguments:
+                        array = argument.guess(parser.Array)
+                        if array is not None:
+                            return parser.Array(
+                                cell = parser.Number(
+                                    parser = parser,
+                                    ),
+                                entity_class = array.entity_class,
+                                parser = parser,
+                                )
+            else:
+                method = self.subject.guess(parser.Attribute)
+                if method is not None:
+                    if method.name in ('calculate', 'get_array'):
+                        assert len(self.positional_arguments) >= 1
+                        variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
+                        if variable_name_wrapper is None:
+                            cell_wrapper = None
+                            entity_class = None
+                        else:
+                            tax_benefit_system = parser.tax_benefit_system
+                            column = tax_benefit_system.column_by_name[variable_name_wrapper.value]
+                            cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                            entity_class = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                        return parser.Array(
+                            cell = cell_wrapper,
+                            entity_class = entity_class,
+                            parser = parser,
+                            )
+                    if method.name == 'compute':
+                        assert len(self.positional_arguments) >= 1
+                        variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
+                        if variable_name_wrapper is None:
+                            column = None
+                        else:
+                            column = parser.tax_benefit_system.column_by_name[variable_name_wrapper.value]
+                        return parser.DatedHolder(
+                            column = column,
+                            parser = parser,
+                            )
+                    if method.name == 'filter_role':
+                        assert len(self.positional_arguments) >= 1
+                        variable = self.positional_arguments[0].guess(parser.Variable)
+                        if variable is None:
+                            cell_wrapper = None
+                            entity_class = None
+                        else:
+                            variable_name = variable.name
+                            if variable_name.endswith(u'_holder'):
+                                variable_name = variable_name[:-len(u'_holder')]
+                            tax_benefit_system = parser.tax_benefit_system
+                            column = tax_benefit_system.column_by_name[variable_name]
+                            cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                        return parser.Array(
+                            cell = cell_wrapper,
+                            entity_class = parser.entity_class,
+                            parser = parser,
+                            )
+                    if method.name in ('any_by_roles', 'sum_by_entity'):
+                        assert len(self.positional_arguments) == 1, self.positional_arguments
+                        assert len(self.named_arguments) == 0, self.named_arguments
+                        variable = self.positional_arguments[0].guess(parser.Variable)
+                        if variable is None:
+                            cell_wrapper = None
+                            entity_class = None
+                        else:
+                            variable_name = variable.name
+                            if variable_name.endswith(u'_holder'):
+                                variable_name = variable_name[:-len(u'_holder')]
+                            tax_benefit_system = parser.tax_benefit_system
+                            column = tax_benefit_system.column_by_name[variable_name]
+                            cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                        return parser.Array(
+                            cell = cell_wrapper,
+                            entity_class = parser.entity_class,
+                            parser = parser,
+                            )
         elif issubclass(parser.Date, expected):
-            function = self.subject.guess(parser.Function)
+            function = self.subject.guess(parser.Variable)
             if function is not None:
                 if function.name == 'date':
                     return parser.Date(parser = parser)
@@ -976,6 +1038,16 @@ class Decorator(AbstractWrapper):
             raise
 
 
+class Dictionary(AbstractWrapper):
+    value = None  # Dictionary value, as a dict
+
+    def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+        super(Dictionary, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert isinstance(value, dict), "Unexpected value for dictionary: {} of type {}".format(value,
+            type(value))
+        self.value = value
+
+
 class Enum(AbstractWrapper):
     value = None
 
@@ -989,28 +1061,6 @@ class Enum(AbstractWrapper):
 #     pass
 
 
-# class EntityToEntity(AbstractWrapper):
-#     keyword_arguments = None
-#     method_name = None
-#     named_arguments = None
-#     positional_arguments = None
-#     star_arguments = None
-
-#     def __init__(self, node, keyword_arguments = None, method_name = None, named_arguments = None,
-#             positional_arguments = None, star_arguments = None, parser = None):
-#         super(EntityToEntity, self).__init__(node, parser = parser)
-#         if keyword_arguments is not None:
-#             self.keyword_arguments = keyword_arguments
-#         if method_name is not None:
-#             self.method_name = method_name
-#         if named_arguments is not None:
-#             self.named_arguments = named_arguments
-#         if positional_arguments is not None:
-#             self.positional_arguments = positional_arguments
-#         if star_arguments is not None:
-#             self.star_arguments = star_arguments
-
-
 class Expression(AbstractWrapper):
     operands = None
     operator = None
@@ -1021,6 +1071,26 @@ class Expression(AbstractWrapper):
         self.operands = operands
         assert isinstance(operator, basestring)
         self.operator = operator
+
+    def guess(self, expected):
+        guessed = super(Expression, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            for operand in self.operands:
+                array = operand.guess(parser.Array)
+                if array is not None:
+                    return parser.Array(
+                        cell = parser.Boolean(
+                            parser = parser,
+                            ),
+                        entity_class = array.entity_class,
+                        parser = parser,
+                        )
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1186,9 +1256,24 @@ class Function(AbstractWrapper):
             assert isinstance(variable_by_name, collections.OrderedDict)
         self.variable_by_name = variable_by_name
 
+    @property
+    def containing_function(self):
+        return self
+
     @classmethod
     def get_function_class(cls, parser = None):
         return parser.Function
+
+    def get_variable(self, name, default = UnboundLocalError, parser = None):
+        variable = self.variable_by_name.get(name, None)
+        if variable is None:
+            container = self.container
+            if container is not None:
+                return container.get_variable(name, default = default, parser = parser)
+            if default is UnboundLocalError:
+                raise KeyError("Undefined value for {}".format(name))
+            variable = default
+        return variable
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -1201,28 +1286,57 @@ class Function(AbstractWrapper):
 
             self = cls(container = container, name = name, node = node, parser = parser)
             self.parse_parameters()
-            body = parser.parse_suite(children[4], container = self)
-            self.body[:] = body
+            # Don't parse body now. Wait for first call (to know the values of the parameters).
+            # self.parse_body()
             return self
         except:
             if node is not None:
                 print "An exception occurred in node:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
             raise
 
-    @property
-    def containing_function(self):
-        return self
+    def parse_body(self):
+        parser = self.parser
+        children = self.node.children
+        assert len(children) == 5
 
-    def get_variable(self, name, default = UnboundLocalError, parser = None):
-        variable = self.variable_by_name.get(name, None)
-        if variable is None:
-            container = self.container
-            if container is not None:
-                return container.get_variable(name, default = default, parser = parser)
-            if default is UnboundLocalError:
-                raise KeyError("Undefined value for {}".format(name))
-            variable = default
-        return variable
+        self.body_parsed = True
+        body = parser.parse_suite(children[4], container = self)
+        self.body[:] = body
+
+    def parse_call(self, call):
+        if not self.body_parsed:
+            parser = self.parser
+
+            positional_arguments = call.positional_arguments
+            if call.star_argument is not None:
+                positional_arguments = positional_arguments + list(call.star_argument.value.value)
+            for argument_name, argument_value in itertools.izip(self.positional_parameters, positional_arguments):
+                self.variable_by_name[argument_name].value = argument_value
+            if self.star_name is not None:
+                self.variable_by_name[self.star_name].value = parser.Tuple(
+                    container = self,
+                    parser = parser,
+                    value = tuple(positional_arguments[len(self.positional_parameters):]),
+                    )
+
+            named_arguments = call.named_arguments
+            if call.keyword_argument is not None:
+                named_arguments = named_arguments.copy()
+                named_arguments.update(call.keyword_argument.value.value)
+            keyword_argument = {}
+            for argument_name, argument_value in named_arguments.iteritems():
+                if argument_name in self.named_parameters:
+                    self.variable_by_name[argument_name].value = argument_value
+                else:
+                    keyword_argument[argument_name] = argument_value
+            if self.keyword_name is not None:
+                self.variable_by_name[self.keyword_name].value = parser.Dictionary(
+                    container = self,
+                    parser = parser,
+                    value = keyword_argument,
+                    )
+
+            self.parse_body()
 
     def parse_parameters(self):
         parser = self.parser
@@ -1602,11 +1716,7 @@ class Module(AbstractWrapper):
         if python is not None:
             # Python module
             self.python = python
-        self.variable_by_name = collections.OrderedDict((
-            ("False", parser.Variable(container = self, name = u'False', parser = parser)),
-            ("True", parser.Variable(container = self, name = u'True', parser = parser)),
-            ))
-        self.variable_by_name.update(sorted(dict(
+        self.variable_by_name = collections.OrderedDict(sorted(dict(
             and_ = parser.Variable(container = self, name = u'and_', parser = parser),
             around = parser.Variable(container = self, name = u'around', parser = parser),
             CAT = parser.Variable(container = self, name = u'CAT', parser = parser,
@@ -1716,6 +1826,25 @@ class NotTest(AbstractWrapper):
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
+    def guess(self, expected):
+        guessed = super(NotTest, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            array = self.value.guess(parser.Array)
+            if array is not None:
+                return parser.Array(
+                    cell = parser.Boolean(
+                        parser = parser,
+                        ),
+                    entity_class = array.entity_class,
+                    parser = parser,
+                    )
+
+        return None
+
     @classmethod
     def parse(cls, node, container = None, parser = None):
         assert node.type == symbols.not_test, "Unexpected not test type:\n{}\n\n{}".format(repr(node),
@@ -1730,20 +1859,24 @@ class NotTest(AbstractWrapper):
 
 
 class Number(AbstractWrapper):
-    value = None  # Number value, as a string
+    value = None
 
     def __init__(self, container = None, node = None, parser = None, value = None):
         super(Number, self).__init__(container = container, node = node, parser = parser)
         if value is not None:
-            assert isinstance(value, (int, float, str)), "Unexpected value for number: {} of type {}".format(value,
+            assert isinstance(value, (bool, int, float)), "Unexpected value for number: {} of type {}".format(value,
                 type(value))
-            self.value = str(value)
+            self.value = value
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
         assert node.type == tokens.NUMBER, "Unexpected number type:\n{}\n\n{}".format(repr(node),
             unicode(node).encode('utf-8'))
-        return cls(container = container, node = node, parser = parser, value = node.value)
+        try:
+            value = int(node.value)
+        except ValueError:
+            value = float(node.value)
+        return cls(container = container, node = node, parser = parser, value = value)
 
 
 class ParentheticalExpression(AbstractWrapper):
@@ -1754,6 +1887,18 @@ class ParentheticalExpression(AbstractWrapper):
             parser = parser)
         assert isinstance(value, AbstractWrapper)
         self.value = value
+
+    def guess(self, expected):
+        guessed = super(ParentheticalExpression, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        if self.value is not None:
+            guessed = self.value.guess(expected)
+            if guessed is not None:
+                return guessed
+
+        return None
 
 
 class Period(AbstractWrapper):
@@ -1850,6 +1995,28 @@ class Term(AbstractWrapper):
         assert isinstance(items, list)
         assert len(items) >= 3 and (len(items) & 1)
         self.items = items
+
+    def guess(self, expected):
+        guessed = super(Term, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            for index, item in enumerate(self.items):
+                if index & 1:
+                    continue
+                array = item.guess(parser.Array)
+                if array is not None:
+                    return parser.Array(
+                        cell = parser.Number(
+                            parser = parser,
+                            ),
+                        entity_class = array.entity_class,
+                        parser = parser,
+                        )
+
+        return None
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -2027,6 +2194,13 @@ class Variable(AbstractWrapper):
         return cls(container = container, name = node.value, node = node, parser = parser, value = value)
 
 
+# Level-2 Wrappers
+
+
+class Boolean(Number):
+    pass
+
+
 # Formula-specific classes
 
 
@@ -2048,6 +2222,24 @@ class FormulaClassFileInput(ClassFileInput):
 
 
 class FormulaFunction(Function):
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        try:
+            children = node.children
+            assert len(children) == 5
+            assert children[0].type == tokens.NAME and children[0].value == 'def'
+            assert children[1].type == tokens.NAME  # Function name
+            name = children[1].value
+
+            self = cls(container = container, name = name, node = node, parser = parser)
+            self.parse_parameters()
+            self.parse_body()
+            return self
+        except:
+            if node is not None:
+                print "An exception occurred in node:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+            raise
+
     def parse_parameters(self):
         super(FormulaFunction, self).parse_parameters()
         parser = self.parser
@@ -2080,6 +2272,7 @@ class Parser(conv.State):
     Assert = Assert
     Assignment = Assignment
     Attribute = Attribute
+    Boolean = Boolean
     Call = Call
     Class = Class
     ClassFileInput = ClassFileInput
@@ -2092,6 +2285,7 @@ class Parser(conv.State):
     DateTime64 = DateTime64
     DatedHolder = DatedHolder
     Decorator = Decorator
+    Dictionary = Dictionary
     driver = None
     # Entity = Entity
     # EntityToEntity = EntityToEntity
@@ -2155,7 +2349,7 @@ class Parser(conv.State):
 
     def get_cell_wrapper(self, container = None, type = None):
         wrapper_class = {
-            np.bool: self.Number,
+            np.bool: self.Boolean,
             np.float32: self.Number,
             np.int16: self.Number,
             np.int32: self.Number,
@@ -2330,8 +2524,12 @@ class Parser(conv.State):
 
         if node.type == tokens.NAME:
             name = node.value
-            if name == u'None':
+            if name == u'False':
+                return self.Boolean(container = container, parser = self, value = False)
+            elif name == u'None':
                 return self.NoneWrapper(container = container, parser = self)
+            elif name == u'True':
+                return self.Boolean(container = container, parser = self, value = True)
             variable = container.get_variable(name, default = None, parser = self)
             assert variable is not None, "Undefined variable: {}".format(name)
             return variable
