@@ -188,10 +188,14 @@ class Assignment(formulas_parsers_2to3.Assignment):
                 call_subject = call.subject
                 if isinstance(call_subject, parser.Attribute):
                     method_name = call_subject.name
-                    if method_name in ('calculate', 'compute'):
+                    if method_name in ('calculate', 'compute', 'sum_calculate', 'sum_compute'):
+                        method_julia_name = dict(
+                            compute = u'calculate',
+                            sum_compute = u'sum_calculate',
+                            ).get(method_name, method_name)
                         variable_name = variable.name
-                        if variable_name.endswith(u'_holder'):
-                            variable_name = variable_name[:-len(u'_holder')]
+                        # if variable_name.endswith(u'_holder'):
+                        #     variable_name = variable_name[:-len(u'_holder')]
                         method_subject = call_subject.subject
                         if method_subject.guess(parser.Simulation):
                             assert len(call.positional_arguments) >= 1, call.positional_arguments
@@ -204,14 +208,16 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                         container = container,
                                         hint = call.hint,
                                         parser = parser,
-                                        positional_arguments = [parser.Variable(
-                                            container = container,
-                                            # hint = parser.ArrayHandle(parser = parser),  TODO
-                                            name = requested_variable_string.value,
-                                            parser = parser,
-                                            )] + call.positional_arguments[1:],
+                                        positional_arguments = [
+                                            parser.Variable(
+                                                container = container,
+                                                # hint = parser.ArrayHandle(parser = parser),  TODO
+                                                name = requested_variable_string.value,
+                                                parser = parser,
+                                                ),
+                                            ] + call.positional_arguments[1:],
                                         subject = parser.Variable(  # TODO: Use Macro or MacroCall.
-                                            name = u'@calculate',
+                                            name = u'@{}'.format(method_julia_name),
                                             parser = parser,
                                             ),
                                         )
@@ -228,55 +234,22 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                             container = container,
                                             hint = call.hint,
                                             parser = parser,
-                                            positional_arguments = [parser.String(
-                                                container = container,
-                                                parser = parser,
-                                                value = requested_variable_string.value,
-                                                )] + call.positional_arguments[1:],
+                                            positional_arguments = [
+                                                method_subject,
+                                                parser.String(
+                                                    container = container,
+                                                    parser = parser,
+                                                    value = requested_variable_string.value,
+                                                    ),
+                                                ] + call.positional_arguments[1:],
                                             subject = parser.Variable(  # TODO: Use function call.
-                                                name = u'calculate',
+                                                name = method_julia_name,
                                                 parser = parser,
                                                 ),
                                             ),
                                         ],
                                     )
-                    if method_name == 'filter_role':
-                        method_subject = call_subject.subject
-                        if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
-                            assert len(call.positional_arguments) == 1, call.positional_arguments
-                            assert len(call.named_arguments) == 1, call.named_arguments
-                            assert 'role' in call.named_arguments
-                            requested_variable = call.positional_arguments[0].juliaize()
-                            # x = single_person_in_entity(x, get_entity(variable), period, role)
-                            return parser.Assignment(
-                                container = container,
-                                left = [
-                                    parser.Variable(container = container, name = variable.name, parser = parser),
-                                    ],
-                                operator = u'=',
-                                parser = parser,
-                                right = [
-                                    parser.Call(
-                                        container = container,
-                                        hint = call.hint,
-                                        parser = parser,
-                                        positional_arguments = [
-                                            requested_variable,
-                                            parser.Variable(
-                                                container = container,
-                                                name = u'get_entity(variable)',
-                                                parser = parser,
-                                                ),
-                                            call.named_arguments['role'].juliaize(),
-                                            ],
-                                        subject = parser.Variable(  # TODO: Use function call.
-                                            name = u'single_person_in_entity',
-                                            parser = parser,
-                                            ),
-                                        ),
-                                    ],
-                                )
-                    if method_name == 'get_array':
+                    elif method_name == 'get_array':
                         method_subject = call_subject.subject
                         if method_subject.guess(parser.Simulation):
                             assert len(call.positional_arguments) >= 1, call.positional_arguments
@@ -322,6 +295,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                             hint = call.hint,
                                             parser = parser,
                                             positional_arguments = [
+                                                method_subject,
                                                 parser.String(
                                                     container = container,
                                                     parser = parser,
@@ -341,40 +315,6 @@ class Assignment(formulas_parsers_2to3.Assignment):
                                             ),
                                         ],
                                     )
-                    if method_name == 'sum_by_entity':
-                        method_subject = call_subject.subject
-                        if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
-                            assert len(call.positional_arguments) == 1, call.positional_arguments
-                            assert len(call.named_arguments) == 0, call.named_arguments
-                            requested_variable = call.positional_arguments[0].juliaize()
-                            # x = sum_person_in_entity(x, get_entity(variable), period)
-                            return parser.Assignment(
-                                container = container,
-                                left = [
-                                    parser.Variable(container = container, name = variable.name, parser = parser),
-                                    ],
-                                operator = u'=',
-                                parser = parser,
-                                right = [
-                                    parser.Call(
-                                        container = container,
-                                        hint = call.hint,
-                                        parser = parser,
-                                        positional_arguments = [
-                                            requested_variable,
-                                            parser.Variable(
-                                                container = container,
-                                                name = u'get_entity(variable)',
-                                                parser = parser,
-                                                ),
-                                            ],
-                                        subject = parser.Variable(  # TODO: Use function call.
-                                            name = u'sum_person_in_entity',
-                                            parser = parser,
-                                            ),
-                                        ),
-                                    ],
-                                )
         return self.__class__(
             container = container,
             hint = self.hint,
@@ -528,6 +468,7 @@ class Call(formulas_parsers_2to3.Call):
         return None
 
     def juliaize(self):
+        container = self.container
         parser = self.parser
         keyword_argument = self.keyword_argument.juliaize() if self.keyword_argument is not None else None
         named_arguments = collections.OrderedDict(
@@ -542,19 +483,35 @@ class Call(formulas_parsers_2to3.Call):
         subject = self.subject.juliaize()
         if isinstance(subject, parser.Attribute):
             method_name = subject.name
-            if method_name == 'astype':
+            if method_name in ('all', 'any'):
+                method_subject = subject.subject
+                if method_subject.guess(parser.Array):
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        keyword_argument = keyword_argument,
+                        named_arguments = named_arguments,
+                        parser = parser,
+                        positional_arguments = [method_subject] + positional_arguments,
+                        star_argument = star_argument,
+                        subject = parser.Variable(
+                            name = method_name,
+                            parser = parser,
+                            ),
+                        )
+            elif method_name == 'astype':
                 assert len(positional_arguments) == 1, positional_arguments
                 argument_string = positional_arguments[0].guess(parser.String)
                 if argument_string is not None:
                     if argument_string.value == u'timedelta64[M]':
                         return parser.Call(
-                            container = self.container,
+                            container = container,
                             parser = parser,
                             positional_arguments = [
                                 parser.Term(
                                     items = [
                                         parser.Call(
-                                            container = self.container,
+                                            container = container,
                                             parser = parser,
                                             positional_arguments = [
                                                 subject.subject,
@@ -585,13 +542,13 @@ class Call(formulas_parsers_2to3.Call):
                             )
                     elif argument_string.value == u'timedelta64[Y]':
                         return parser.Call(
-                            container = self.container,
+                            container = container,
                             parser = parser,
                             positional_arguments = [
                                 parser.Term(
                                     items = [
                                         parser.Call(
-                                            container = self.container,
+                                            container = container,
                                             parser = parser,
                                             positional_arguments = [
                                                 subject.subject,
@@ -615,6 +572,84 @@ class Call(formulas_parsers_2to3.Call):
                                 parser = parser,
                                 ),
                             )
+            elif method_name == 'calc':
+                method_subject = subject.subject
+                if method_subject.guess(parser.TaxScale):
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        keyword_argument = keyword_argument,
+                        named_arguments = named_arguments,
+                        parser = parser,
+                        positional_arguments = [method_subject] + positional_arguments,
+                        star_argument = star_argument,
+                        subject = parser.Variable(
+                            name = u'apply_tax_scale',
+                            parser = parser,
+                            ),
+                        )
+            elif method_name in ('cast_from_entity_to_role', 'cast_from_entity_to_roles'):
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
+                    assert len(positional_arguments) == 1, positional_arguments
+                    assert len(named_arguments) <= 1, named_arguments
+                    if len(named_arguments) == 1:
+                        assert 'role' in named_arguments or 'roles' in named_arguments
+                        roles_arguments = [
+                            (named_arguments.get('role') or named_arguments.get('roles')),
+                            ]
+                    else:
+                        roles_arguments = []
+                    requested_variable = positional_arguments[0]
+                    # entity_to_person(x, period, role)
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        parser = parser,
+                        positional_arguments = [
+                            requested_variable,
+                            parser.Variable(
+                                container = container,
+                                name = u'period',
+                                parser = parser,
+                                ),
+                            ] + roles_arguments,
+                        subject = parser.Variable(  # TODO: Use function call.
+                            name = u'entity_to_person',
+                            parser = parser,
+                            ),
+                        )
+            elif method_name == 'filter_role':
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
+                    assert len(positional_arguments) == 1, positional_arguments
+                    assert len(named_arguments) == 1, named_arguments
+                    assert 'role' in named_arguments
+                    requested_variable = positional_arguments[0]
+                    # single_person_in_entity(x, get_entity(variable), period, role)
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        parser = parser,
+                        positional_arguments = [
+                            requested_variable,
+                            parser.Variable(
+                                container = container,
+                                name = u'get_entity(variable)',
+                                parser = parser,
+                                ),
+                            parser.Variable(
+                                container = container,
+                                name = u'period',
+                                parser = parser,
+                                ),
+                            named_arguments['role'],
+                            ],
+                        subject = parser.Variable(  # TODO: Use function call.
+                            name = u'single_person_in_entity',
+                            parser = parser,
+                            ),
+                        )
             elif method_name == 'legislation_at':
                 method_subject = subject.subject
                 if method_subject.guess(parser.Simulation):
@@ -624,7 +659,7 @@ class Call(formulas_parsers_2to3.Call):
                         assert len(named_arguments) <= 1, named_arguments
                         reference = named_arguments.get('reference')
                         return parser.Call(
-                            container = self.container,
+                            container = container,
                             hint = parser.CompactNode(
                                 is_reference = bool(reference),
                                 parser = parser,
@@ -646,7 +681,7 @@ class Call(formulas_parsers_2to3.Call):
                     if isinstance(delta, parser.String) and delta.value == 'first-of':
                         if isinstance(unit, parser.String) and unit.value == 'month':
                             return parser.Call(
-                                container = self.container,
+                                container = container,
                                 hint = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
@@ -657,7 +692,7 @@ class Call(formulas_parsers_2to3.Call):
                                 )
                         if isinstance(unit, parser.String) and unit.value == 'year':
                             return parser.Call(
-                                container = self.container,
+                                container = container,
                                 hint = parser.Instant(parser = parser),
                                 parser = parser,
                                 positional_arguments = [method_subject],
@@ -666,6 +701,20 @@ class Call(formulas_parsers_2to3.Call):
                                     parser = parser,
                                     ),
                                 )
+                elif method_subject.guess(parser.Period):
+                    assert len(positional_arguments) == 1, positional_arguments
+                    delta = positional_arguments[0]
+                    if isinstance(delta, parser.String) and delta.value == 'first-of':
+                        return parser.Call(
+                            container = container,
+                            hint = parser.Instant(parser = parser),
+                            parser = parser,
+                            positional_arguments = [method_subject],
+                            subject = parser.Variable(
+                                name = u'first_day',
+                                parser = parser,
+                                ),
+                            )
             elif method_name == 'period':
                 method_subject = subject.subject
                 if method_subject.guess(parser.Instant):
@@ -673,7 +722,7 @@ class Call(formulas_parsers_2to3.Call):
                     unit = positional_arguments[0]
                     if isinstance(unit, parser.String) and unit.value == 'month':
                         return parser.Call(
-                            container = self.container,
+                            container = container,
                             hint = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + positional_arguments[1:],
@@ -684,7 +733,7 @@ class Call(formulas_parsers_2to3.Call):
                             )
                     if isinstance(unit, parser.String) and unit.value == 'year':
                         return parser.Call(
-                            container = self.container,
+                            container = container,
                             hint = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject] + positional_arguments[1:],
@@ -693,32 +742,111 @@ class Call(formulas_parsers_2to3.Call):
                                 parser = parser,
                                 ),
                             )
+            elif method_name == 'split_by_roles':
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
+                    assert len(positional_arguments) == 1, positional_arguments
+                    requested_variable = positional_arguments[0]
+                    assert len(named_arguments) <= 1, named_arguments
+                    if len(named_arguments) == 1:
+                        assert 'roles' in named_arguments
+                        roles_arguments = [named_arguments['roles']]
+                    else:
+                        roles_arguments = []
+                    # split_person_by_role(x, get_entity(variable), period, roles)
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        parser = parser,
+                        positional_arguments = [
+                            requested_variable,
+                            parser.Variable(
+                                container = container,
+                                name = u'get_entity(variable)',
+                                parser = parser,
+                                ),
+                            parser.Variable(
+                                container = container,
+                                name = u'period',
+                                parser = parser,
+                                ),
+                            ] + roles_arguments,
+                        subject = parser.Variable(  # TODO: Use function call.
+                            name = u'split_person_by_role',
+                            parser = parser,
+                            ),
+                        )
+            elif method_name == 'sum_by_entity':
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
+                    assert len(positional_arguments) == 1, positional_arguments
+                    assert len(named_arguments) == 0, named_arguments
+                    requested_variable = positional_arguments[0]
+                    # sum_person_in_entity(x, get_entity(variable), period)
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        parser = parser,
+                        positional_arguments = [
+                            requested_variable,
+                            parser.Variable(
+                                container = container,
+                                name = u'get_entity(variable)',
+                                parser = parser,
+                                ),
+                            parser.Variable(
+                                container = container,
+                                name = u'period',
+                                parser = parser,
+                                ),
+                            ],
+                        subject = parser.Variable(  # TODO: Use function call.
+                            name = u'sum_person_in_entity',
+                            parser = parser,
+                            ),
+                        )
         elif isinstance(subject, parser.Variable):
             function_name = subject.name
             if function_name == 'and_':
                 assert len(positional_arguments) == 2, positional_arguments
                 left, right = positional_arguments
-                return parser.AndExpression(
-                    container = self.container,
-                    operands = [
-                        parser.ParentheticalExpression(
-                            container = self.container,
-                            parser = parser,
-                            value = left,
-                            ),
-                        parser.ParentheticalExpression(
-                            container = self.container,
-                            parser = parser,
-                            value = right,
-                            ),
-                        ],
-                    operator = u'&',
+                return parser.ParentheticalExpression(
+                    container = container,
                     parser = parser,
+                    value = parser.AndExpression(
+                        container = container,
+                        operands = [
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = left,
+                                ),
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = right,
+                                ),
+                            ],
+                        operator = u'&',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == 'around':
+                assert len(positional_arguments) == 1, positional_arguments
+                return parser.Call(
+                    container = container,
+                    hint = positional_arguments[0].hint,
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'round',
+                        parser = parser,
+                        ),
                     )
             elif function_name == 'date':
                 assert len(positional_arguments) == 3, positional_arguments
                 return parser.Call(
-                    container = self.container,
+                    container = container,
                     hint = parser.Date(parser = parser),
                     parser = parser,
                     positional_arguments = positional_arguments,
@@ -729,7 +857,7 @@ class Call(formulas_parsers_2to3.Call):
                     )
             elif function_name == 'max_':
                 return parser.Call(
-                    container = self.container,
+                    container = container,
                     hint = self.hint,
                     parser = parser,
                     positional_arguments = positional_arguments,
@@ -740,7 +868,7 @@ class Call(formulas_parsers_2to3.Call):
                     )
             elif function_name == 'min_':
                 return parser.Call(
-                    container = self.container,
+                    container = container,
                     hint = self.hint,
                     parser = parser,
                     positional_arguments = positional_arguments,
@@ -753,9 +881,9 @@ class Call(formulas_parsers_2to3.Call):
                 assert len(positional_arguments) == 1, positional_arguments
                 value = positional_arguments[0]
                 return parser.NotTest(
-                    container = self.container,
+                    container = container,
                     value = parser.ParentheticalExpression(
-                        container = self.container,
+                        container = container,
                         parser = parser,
                         value = value,
                         ),
@@ -764,22 +892,26 @@ class Call(formulas_parsers_2to3.Call):
             elif function_name == 'or_':
                 assert len(positional_arguments) == 2, positional_arguments
                 left, right = positional_arguments
-                return parser.Expression(
-                    container = self.container,
-                    operands = [
-                        parser.ParentheticalExpression(
-                            container = self.container,
-                            parser = parser,
-                            value = left,
-                            ),
-                        parser.ParentheticalExpression(
-                            container = self.container,
-                            parser = parser,
-                            value = right,
-                            ),
-                        ],
-                    operator = u'|',
+                return parser.ParentheticalExpression(
+                    container = container,
                     parser = parser,
+                    value = parser.Expression(
+                        container = container,
+                        operands = [
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = left,
+                                ),
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = right,
+                                ),
+                            ],
+                        operator = u'|',
+                        parser = parser,
+                        ),
                     )
             elif function_name == 'datetime64':
                 assert len(positional_arguments) == 1, positional_arguments
@@ -787,7 +919,7 @@ class Call(formulas_parsers_2to3.Call):
                 assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
                 return argument
         return self.__class__(
-            container = self.container,
+            container = container,
             hint = self.hint,
             keyword_argument = keyword_argument,
             named_arguments = named_arguments,
@@ -1175,8 +1307,12 @@ class ParentheticalExpression(formulas_parsers_2to3.ParentheticalExpression):
             )
 
     def source_julia(self, depth = 0):
+        parser = self.parser
+        value = self.value
+        if isinstance(value, (parser.NotTest, parser.Number, parser.ParentheticalExpression, parser.Variable)):
+            return value.source_julia(depth = depth)
         return u"({})".format(
-            self.value.source_julia(depth = depth),
+            value.source_julia(depth = depth),
             )
 
 
@@ -1416,8 +1552,8 @@ class Parser(formulas_parsers_2to3.Parser):
     def juliaize_name(self, name):
         if name == u'function':
             name = u'func'
-        elif name.endswith(u'_holder'):
-            name = name[:-len(u'_holder')]
+        # elif name.endswith(u'_holder'):
+        #     name = name[:-len(u'_holder')]
         return name
 
     def source_julia_column_without_function(self):
