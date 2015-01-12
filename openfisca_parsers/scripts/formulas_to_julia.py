@@ -82,7 +82,41 @@ name_by_role_by_entity_key_singular = dict(
     )
 
 
-class AndTest(formulas_parsers_2to3.AndTest):
+# Abstract Wrappers
+
+
+class JuliaCompilerMixin(object):
+    def testize(self, allow_array = False):
+        container = self.container
+        parser = self.parser
+        if self.guess(parser.Dictionary) is not None or self.guess(parser.List) is not None \
+                or self.guess(parser.Tuple) is not None or self.guess(parser.UniformDictionary) is not None:
+            return parser.NotTest(
+                container = container,
+                parser = parser,
+                value = parser.Call(
+                    container = container,
+                    parser = parser,
+                    positional_arguments = [self],
+                    subject = parser.Variable(
+                        name = u'isempty',
+                        parser = parser,
+                        ),
+                    ),
+                )
+        if self.guess(parser.Boolean) is not None:
+            return self
+        if allow_array:
+            array = self.guess(parser.Array)
+            if array is not None and array.cell.guess(parser.Boolean) is not None:
+                return self
+        assert False, "{} has a non-boolean value: {}".format(self.__class__.__name__, self.node)
+
+
+# Concrete Wrappers
+
+
+class AndTest(JuliaCompilerMixin, formulas_parsers_2to3.AndTest):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -102,13 +136,13 @@ class AndTest(formulas_parsers_2to3.AndTest):
             )
 
 
-class AndExpression(formulas_parsers_2to3.AndExpression):
+class AndExpression(JuliaCompilerMixin, formulas_parsers_2to3.AndExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
             hint = self.hint,
             operands = [
-                operand.juliaize()
+                operand.juliaize().testize(allow_array = True)
                 for operand in self.operands
                 ],
             operator = self.operator,
@@ -122,7 +156,7 @@ class AndExpression(formulas_parsers_2to3.AndExpression):
             )
 
 
-class ArithmeticExpression(formulas_parsers_2to3.ArithmeticExpression):
+class ArithmeticExpression(JuliaCompilerMixin, formulas_parsers_2to3.ArithmeticExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -142,7 +176,7 @@ class ArithmeticExpression(formulas_parsers_2to3.ArithmeticExpression):
             )
 
 
-class Assert(formulas_parsers_2to3.Assert):
+class Assert(JuliaCompilerMixin, formulas_parsers_2to3.Assert):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -159,7 +193,7 @@ class Assert(formulas_parsers_2to3.Assert):
             )
 
 
-class Assignment(formulas_parsers_2to3.Assignment):
+class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
     def juliaize(self):
         container = self.container
         parser = self.parser
@@ -336,7 +370,7 @@ class Assignment(formulas_parsers_2to3.Assignment):
         return u'{} {} {}'.format(left_str, self.operator, right_str)
 
 
-class Attribute(formulas_parsers_2to3.Attribute):
+class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
     def juliaize(self):
         parser = self.parser
         subject = self.subject.juliaize()
@@ -359,9 +393,14 @@ class Attribute(formulas_parsers_2to3.Attribute):
                         value = node_value,
                         )
                 elif node_type == u'Parameter':
-                    hint = parser.Number(
-                        parser = parser,
-                        )
+                    if node_value.get('format') == 'boolean':
+                        hint = parser.Boolean(
+                            parser = parser,
+                            )
+                    else:
+                        hint = parser.Number(
+                            parser = parser,
+                            )
                 else:
                     assert node_type == u'Scale'
                     hint = parser.TaxScale(
@@ -435,7 +474,7 @@ class Attribute(formulas_parsers_2to3.Attribute):
             )
 
 
-class Boolean(formulas_parsers_2to3.Boolean):
+class Boolean(JuliaCompilerMixin, formulas_parsers_2to3.Boolean):
     def juliaize(self):
         return self
 
@@ -443,7 +482,7 @@ class Boolean(formulas_parsers_2to3.Boolean):
         return u'true' if self.value else u'false'
 
 
-class Call(formulas_parsers_2to3.Call):
+class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
     def guess(self, expected):
         guessed = super(Call, self).guess(expected)
         if guessed is not None:
@@ -464,6 +503,13 @@ class Call(formulas_parsers_2to3.Call):
                                 entity_class = array.entity_class,
                                 parser = parser,
                                 )
+        if issubclass(parser.Boolean, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name in (u'all', u'any', u'isempty'):
+                    return parser.Boolean(
+                        parser = parser,
+                        )
 
         return None
 
@@ -855,6 +901,11 @@ class Call(formulas_parsers_2to3.Call):
                         parser = parser,
                         ),
                     )
+            elif function_name == 'datetime64':
+                assert len(positional_arguments) == 1, positional_arguments
+                argument = positional_arguments[0]
+                assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
+                return argument
             elif function_name == 'max_':
                 return parser.Call(
                     container = container,
@@ -913,11 +964,30 @@ class Call(formulas_parsers_2to3.Call):
                         parser = parser,
                         ),
                     )
-            elif function_name == 'datetime64':
-                assert len(positional_arguments) == 1, positional_arguments
-                argument = positional_arguments[0]
-                assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
-                return argument
+            elif function_name == 'xor_':
+                assert len(positional_arguments) == 2, positional_arguments
+                left, right = positional_arguments
+                return parser.ParentheticalExpression(
+                    container = container,
+                    parser = parser,
+                    value = parser.XorExpression(
+                        container = container,
+                        operands = [
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = left,
+                                ),
+                            parser.ParentheticalExpression(
+                                container = container,
+                                parser = parser,
+                                value = right,
+                                ),
+                            ],
+                        operator = u'$',
+                        parser = parser,
+                        ),
+                    )
         return self.__class__(
             container = container,
             hint = self.hint,
@@ -949,11 +1019,11 @@ class Call(formulas_parsers_2to3.Call):
             )
 
 
-class Class(formulas_parsers_2to3.Class):
+class Class(JuliaCompilerMixin, formulas_parsers_2to3.Class):
     pass
 
 
-class Comparison(formulas_parsers_2to3.Comparison):
+class Comparison(JuliaCompilerMixin, formulas_parsers_2to3.Comparison):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -978,7 +1048,7 @@ class Comparison(formulas_parsers_2to3.Comparison):
             self.right.source_julia(depth = depth))
 
 
-class Continue(formulas_parsers_2to3.Continue):
+class Continue(JuliaCompilerMixin, formulas_parsers_2to3.Continue):
     def juliaize(self):
         return self  # Conversion of variable to Julia is done only once, during assignment.
 
@@ -986,13 +1056,13 @@ class Continue(formulas_parsers_2to3.Continue):
         return u'continue'
 
 
-class Expression(formulas_parsers_2to3.Expression):
+class Expression(JuliaCompilerMixin, formulas_parsers_2to3.Expression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
             hint = self.hint,
             operands = [
-                operand.juliaize()
+                operand.juliaize().testize(allow_array = True)
                 for operand in self.operands
                 ],
             operator = self.operator,
@@ -1006,7 +1076,7 @@ class Expression(formulas_parsers_2to3.Expression):
             )
 
 
-class Factor(formulas_parsers_2to3.Factor):
+class Factor(JuliaCompilerMixin, formulas_parsers_2to3.Factor):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1020,7 +1090,7 @@ class Factor(formulas_parsers_2to3.Factor):
         return u'{}{}'.format(self.operator, self.operand.source_julia(depth = depth))
 
 
-class For(formulas_parsers_2to3.For):
+class For(JuliaCompilerMixin, formulas_parsers_2to3.For):
     def juliaize(self):
         parser = self.parser
         # Convert variables to Julia only once, during assignment.
@@ -1063,7 +1133,7 @@ class For(formulas_parsers_2to3.For):
             )
 
 
-class Function(formulas_parsers_2to3.Function):
+class Function(JuliaCompilerMixin, formulas_parsers_2to3.Function):
     def juliaize(self):
         parser = self.parser
         # Convert variables to Julia only once, during assignment.
@@ -1151,7 +1221,7 @@ class Function(formulas_parsers_2to3.Function):
         return u''.join(statements)
 
 
-class FunctionFileInput(formulas_parsers_2to3.FunctionFileInput):
+class FunctionFileInput(JuliaCompilerMixin, formulas_parsers_2to3.FunctionFileInput):
     @classmethod
     def parse(cls, function, parser = None):
         function_wrapper = super(FunctionFileInput, cls).parse(function, parser = parser)
@@ -1159,14 +1229,14 @@ class FunctionFileInput(formulas_parsers_2to3.FunctionFileInput):
         return function_wrapper
 
 
-class If(formulas_parsers_2to3.If):
+class If(JuliaCompilerMixin, formulas_parsers_2to3.If):
     def juliaize(self):
         return self.__class__(
             container = self.container,
             hint = self.hint,
             items = [
                 (
-                    test.juliaize() if test is not None else None,
+                    test.juliaize().testize() if test is not None else None,
                     [
                         statement.juliaize()
                         for statement in body
@@ -1191,12 +1261,12 @@ class If(formulas_parsers_2to3.If):
             ) + u'{}end'.format(u'  ' * depth)
 
 
-class Instant(formulas_parsers_2to3.Instant):
+class Instant(JuliaCompilerMixin, formulas_parsers_2to3.Instant):
     def juliaize(self):
         return self
 
 
-class Key(formulas_parsers_2to3.Key):
+class Key(JuliaCompilerMixin, formulas_parsers_2to3.Key):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1213,7 +1283,7 @@ class Key(formulas_parsers_2to3.Key):
             )
 
 
-class Lambda(formulas_parsers_2to3.Lambda):
+class Lambda(JuliaCompilerMixin, formulas_parsers_2to3.Lambda):
     def juliaize(self):
         parser = self.parser
         # Convert variables to Julia only once, during assignment.
@@ -1247,7 +1317,7 @@ class Lambda(formulas_parsers_2to3.Lambda):
             )
 
 
-class List(formulas_parsers_2to3.List):
+class List(JuliaCompilerMixin, formulas_parsers_2to3.List):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1266,7 +1336,7 @@ class List(formulas_parsers_2to3.List):
             ))
 
 
-class NoneWrapper(formulas_parsers_2to3.NoneWrapper):
+class NoneWrapper(JuliaCompilerMixin, formulas_parsers_2to3.NoneWrapper):
     def juliaize(self):
         return self
 
@@ -1274,22 +1344,24 @@ class NoneWrapper(formulas_parsers_2to3.NoneWrapper):
         return u'nothing'
 
 
-class NotTest(formulas_parsers_2to3.NotTest):
+class NotTest(JuliaCompilerMixin, formulas_parsers_2to3.NotTest):
     def juliaize(self):
         return self.__class__(
             container = self.container,
             hint = self.hint,
             parser = self.parser,
-            value = self.value.juliaize(),
+            value = self.value.juliaize().testize(),
             )
 
     def source_julia(self, depth = 0):
-        return u"!{}".format(
-            self.value.source_julia(depth = depth),
-            )
+        parser = self.parser
+        value = self.value
+        if isinstance(value, parser.NotTest):
+            return value.value.source_julia(depth = depth)
+        return u"!{}".format(value.source_julia(depth = depth))
 
 
-class Number(formulas_parsers_2to3.Number):
+class Number(JuliaCompilerMixin, formulas_parsers_2to3.Number):
     def juliaize(self):
         return self
 
@@ -1297,7 +1369,7 @@ class Number(formulas_parsers_2to3.Number):
         return unicode(self.value)
 
 
-class ParentheticalExpression(formulas_parsers_2to3.ParentheticalExpression):
+class ParentheticalExpression(JuliaCompilerMixin, formulas_parsers_2to3.ParentheticalExpression):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1311,17 +1383,15 @@ class ParentheticalExpression(formulas_parsers_2to3.ParentheticalExpression):
         value = self.value
         if isinstance(value, (parser.NotTest, parser.Number, parser.ParentheticalExpression, parser.Variable)):
             return value.source_julia(depth = depth)
-        return u"({})".format(
-            value.source_julia(depth = depth),
-            )
+        return u"({})".format(value.source_julia(depth = depth))
 
 
-class Period(formulas_parsers_2to3.Period):
+class Period(JuliaCompilerMixin, formulas_parsers_2to3.Period):
     def juliaize(self):
         return self
 
 
-class Return(formulas_parsers_2to3.Return):
+class Return(JuliaCompilerMixin, formulas_parsers_2to3.Return):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1339,12 +1409,12 @@ class Return(formulas_parsers_2to3.Return):
         return u"return {}".format(self.value.source_julia(depth = depth))
 
 
-class Simulation(formulas_parsers_2to3.Simulation):
+class Simulation(JuliaCompilerMixin, formulas_parsers_2to3.Simulation):
     def juliaize(self):
         return self
 
 
-class String(formulas_parsers_2to3.String):
+class String(JuliaCompilerMixin, formulas_parsers_2to3.String):
     def juliaize(self):
         return self
 
@@ -1352,7 +1422,7 @@ class String(formulas_parsers_2to3.String):
         return generate_string_julia_source(self.value)
 
 
-class Term(formulas_parsers_2to3.Term):
+class Term(JuliaCompilerMixin, formulas_parsers_2to3.Term):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1375,14 +1445,14 @@ class Term(formulas_parsers_2to3.Term):
             )
 
 
-class Test(formulas_parsers_2to3.Test):
+class Test(JuliaCompilerMixin, formulas_parsers_2to3.Test):
     def juliaize(self):
         return self.__class__(
             container = self.container,
             false_value = self.false_value.juliaize(),
             hint = self.hint,
             parser = self.parser,
-            test = self.test.juliaize(),
+            test = self.test.juliaize().testize(),
             true_value = self.true_value.juliaize(),
             )
 
@@ -1394,7 +1464,7 @@ class Test(formulas_parsers_2to3.Test):
             )
 
 
-class Tuple(formulas_parsers_2to3.Tuple):
+class Tuple(JuliaCompilerMixin, formulas_parsers_2to3.Tuple):
     def juliaize(self):
         return self.__class__(
             container = self.container,
@@ -1413,12 +1483,32 @@ class Tuple(formulas_parsers_2to3.Tuple):
             ))
 
 
-class Variable(formulas_parsers_2to3.Variable):
+class Variable(JuliaCompilerMixin, formulas_parsers_2to3.Variable):
     def juliaize(self):
         return self  # Conversion of variable to Julia is done only once, during assignment.
 
     def source_julia(self, depth = 0):
         return self.parser.juliaize_name(self.name)
+
+
+class XorExpression(JuliaCompilerMixin, formulas_parsers_2to3.XorExpression):
+    def juliaize(self):
+        return self.__class__(
+            container = self.container,
+            hint = self.hint,
+            operands = [
+                operand.juliaize().testize(allow_array = True)
+                for operand in self.operands
+                ],
+            operator = self.operator,
+            parser = self.parser,
+            )
+
+    def source_julia(self, depth = 0):
+        return u' {} '.format(self.operator).join(
+            operand.source_julia(depth = depth)
+            for operand in self.operands
+            )
 
 
 # Formula-specific classes
@@ -1543,6 +1633,7 @@ class Parser(formulas_parsers_2to3.Parser):
     Test = Test
     Tuple = Tuple
     Variable = Variable
+    XorExpression = XorExpression
 
     def __init__(self, country_package = None, driver = None, tax_benefit_system = None):
         super(Parser, self).__init__(country_package = country_package, driver = driver,

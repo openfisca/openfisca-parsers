@@ -188,6 +188,19 @@ class AndTest(AbstractWrapper):
         assert isinstance(operator, basestring)
         self.operator = operator
 
+    def guess(self, expected):
+        guessed = super(AndTest, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Boolean, expected):
+            return parser.Boolean(
+                parser = parser,
+                )
+
+        return None
+
     @classmethod
     def parse(cls, node, container = None, parser = None):
         assert node.type == symbols.and_test, "Unexpected and test type:\n{}\n\n{}".format(repr(node),
@@ -433,7 +446,16 @@ class Attribute(AbstractWrapper):
             return guessed
 
         parser = self.parser
-        if issubclass(parser.CompactNode, expected):
+        if issubclass(parser.Boolean, expected):
+            compact_node_wrapper = self.subject.guess(parser.CompactNode)
+            if compact_node_wrapper is not None:
+                # TODO: Hande cotisations_employeur & cotisations_salarie.
+                if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
+                    child_json = compact_node_wrapper.value['children'][self.name]
+                    child_type = child_json['@type']
+                    if child_type == u'Parameter' and child_json.get('format') == 'boolean':
+                        return parser.Boolean(parser = parser)
+        elif issubclass(parser.CompactNode, expected):
             compact_node = self.subject.guess(parser.CompactNode)
             if compact_node is not None:
                 # TODO: Hande cotisations_employeur & cotisations_salarie.
@@ -460,7 +482,7 @@ class Attribute(AbstractWrapper):
                 if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
                     child_json = compact_node_wrapper.value['children'][self.name]
                     child_type = child_json['@type']
-                    if child_type == u'Parameter':
+                    if child_type == u'Parameter' and child_json.get('format') != 'boolean':
                         return parser.Number(parser = parser)
         elif issubclass(parser.TaxScale, expected):
             compact_node_wrapper = self.subject.guess(parser.CompactNode)
@@ -541,16 +563,31 @@ class Call(AbstractWrapper):
                                 entity_class = array.entity_class,
                                 parser = parser,
                                 )
+                elif function.name == 'not_':
+                    assert len(self.positional_arguments) == 1
+                    argument = self.positional_arguments[0]
+                    array = argument.guess(parser.Array)
+                    if array is not None:
+                        return parser.Array(
+                            cell = parser.Boolean(
+                                parser = parser,
+                                ),
+                            entity_class = array.entity_class,
+                            parser = parser,
+                            )
             else:
                 method = self.subject.guess(parser.Attribute)
                 if method is not None:
+                    if method.name in ('all', 'any'):
+                        return parser.Boolean(
+                            parser = parser,
+                            )
                     if method.name in ('any_by_roles', 'sum_by_entity'):
                         assert len(self.positional_arguments) == 1, self.positional_arguments
                         assert len(self.named_arguments) == 0, self.named_arguments
                         variable = self.positional_arguments[0].guess(parser.Variable)
                         if variable is None:
                             cell_wrapper = None
-                            entity_class = None
                         else:
                             variable_name = variable.name
                             if variable_name.endswith(u'_holder'):
@@ -596,23 +633,11 @@ class Call(AbstractWrapper):
                             entity_class = parser.person_class,
                             parser = parser,
                             )
-                    if method.name in ('compute', 'sum_compute'):
-                        assert len(self.positional_arguments) >= 1
-                        variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
-                        if variable_name_wrapper is None:
-                            column = None
-                        else:
-                            column = parser.tax_benefit_system.column_by_name[variable_name_wrapper.value]
-                        return parser.DatedHolder(
-                            column = column,
-                            parser = parser,
-                            )
                     if method.name == 'filter_role':
                         assert len(self.positional_arguments) >= 1
                         variable = self.positional_arguments[0].guess(parser.Variable)
                         if variable is None:
                             cell_wrapper = None
-                            entity_class = None
                         else:
                             variable_name = variable.name
                             if variable_name.endswith(u'_holder'):
@@ -625,6 +650,11 @@ class Call(AbstractWrapper):
                             entity_class = parser.entity_class,
                             parser = parser,
                             )
+        elif issubclass(parser.Boolean, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name == 'hasattr':
+                    return parser.Boolean(parser = parser)
         elif issubclass(parser.CompactNode, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
@@ -649,6 +679,20 @@ class Call(AbstractWrapper):
             if function is not None:
                 if function.name == 'date':
                     return parser.Date(parser = parser)
+        elif issubclass(parser.DatedHolder, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name in ('compute', 'sum_compute'):
+                    assert len(self.positional_arguments) >= 1
+                    variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
+                    if variable_name_wrapper is None:
+                        column = None
+                    else:
+                        column = parser.tax_benefit_system.column_by_name[variable_name_wrapper.value]
+                    return parser.DatedHolder(
+                        column = column,
+                        parser = parser,
+                        )
         elif issubclass(parser.Instant, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
@@ -961,6 +1005,10 @@ class Comparison(AbstractWrapper):
                     entity_class = right_dated_holder.entity_class,
                     parser = parser,
                     )
+        elif issubclass(parser.Boolean, expected):
+            return parser.Boolean(
+                parser = parser,
+                )
 
         return None
 
@@ -1912,6 +1960,10 @@ class NotTest(AbstractWrapper):
                     entity_class = array.entity_class,
                     parser = parser,
                     )
+        elif issubclass(parser.Boolean, expected):
+            return parser.Boolean(
+                parser = parser,
+                )
 
         return None
 
@@ -2268,6 +2320,38 @@ class Variable(AbstractWrapper):
         return cls(container = container, name = node.value, node = node, parser = parser, value = value)
 
 
+class XorExpression(AbstractWrapper):
+    operands = None
+    operator = None
+
+    def __init__(self, container = None, hint = None, node = None, operands = None, operator = None, parser = None):
+        super(XorExpression, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert isinstance(operands, list)
+        self.operands = operands
+        assert isinstance(operator, basestring)
+        self.operator = operator
+
+    def guess(self, expected):
+        guessed = super(XorExpression, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.Array, expected):
+            for operand in self.operands:
+                array = operand.guess(parser.Array)
+                if array is not None:
+                    return parser.Array(
+                        cell = parser.Boolean(
+                            parser = parser,
+                            ),
+                        entity_class = array.entity_class,
+                        parser = parser,
+                        )
+
+        return None
+
+
 # Level-2 Wrappers
 
 
@@ -2408,6 +2492,7 @@ class Parser(conv.State):
     # UniformIterator = UniformIterator
     # UniformList = UniformList
     Variable = Variable
+    XorExpression = XorExpression
 
     def __init__(self, country_package = None, driver = None, tax_benefit_system = None):
         if country_package is not None:
