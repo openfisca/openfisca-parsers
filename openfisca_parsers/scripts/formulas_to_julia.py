@@ -33,6 +33,7 @@ import collections
 import datetime
 import importlib
 import inspect
+import itertools
 import lib2to3.pgen2.driver  # , tokenize, token
 import lib2to3.pygram
 import lib2to3.pytree
@@ -99,6 +100,7 @@ class JuliaCompilerMixin(object):
                     parser = parser,
                     positional_arguments = [self],
                     subject = parser.Variable(
+                        container = container,
                         name = u'isempty',
                         parser = parser,
                         ),
@@ -106,11 +108,46 @@ class JuliaCompilerMixin(object):
                 )
         if self.guess(parser.Boolean) is not None:
             return self
+        if self.guess(parser.Number) is not None:
+            return parser.Comparison(
+                container = container,
+                left = parser.ParentheticalExpression(
+                    container = container,
+                    parser = parser,
+                    value = self,
+                    ),
+                operator = u'!=',
+                parser = parser,
+                right = parser.Number(
+                    container = container,
+                    parser = parser,
+                    value = 0,
+                    ),
+                )
         if allow_array:
             array = self.guess(parser.Array)
-            if array is not None and array.cell.guess(parser.Boolean) is not None:
-                return self
-        assert False, "{} has a non-boolean value: {}".format(self.__class__.__name__, self.node)
+            if array is not None:
+                cell = array.cell
+                if cell.guess(parser.Boolean) is not None:
+                    return self
+                if cell.guess(parser.Number) is not None:
+                    return parser.Comparison(
+                        container = container,
+                        left = parser.ParentheticalExpression(
+                            container = container,
+                            parser = parser,
+                            value = self,
+                            ),
+                        operator = u'.!=',
+                        parser = parser,
+                        right = parser.Number(
+                            container = container,
+                            parser = parser,
+                            value = 0,
+                            ),
+                        )
+        assert False, "{} has a non-boolean value: {}\n{}".format(self.__class__.__name__,
+            unicode(self.node).encode('utf-8'), self.__dict__)
 
 
 # Concrete Wrappers
@@ -176,6 +213,11 @@ class ArithmeticExpression(JuliaCompilerMixin, formulas_parsers_2to3.ArithmeticE
             )
 
 
+class Array(JuliaCompilerMixin, formulas_parsers_2to3.Array):
+    def juliaize(self):
+        return self
+
+
 class Assert(JuliaCompilerMixin, formulas_parsers_2to3.Assert):
     def juliaize(self):
         return self.__class__(
@@ -197,24 +239,20 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
     def juliaize(self):
         container = self.container
         parser = self.parser
-        left = []
-        for left_item in self.left:
-            if isinstance(left_item, parser.Variable) and left_item.value is not None:
-                # Convert variables to Julia only once, during assignment.
-                left.append(left_item.__class__(
-                    container = left_item.container,
-                    hint = left_item.hint,
-                    name = left_item.name,
-                    parser = parser,
-                    value = left_item.value.juliaize(),
-                    ).juliaize())
-            else:
-                left.append(left_item.juliaize())
-            left_item = left_item.juliaize()
+        # New variables are not created, but the value of the existing ones are replaced (using right value), otherwise
+        # all references to this variable (in other expressions) will continue using the non julialized version.
+        left = self.left
+        operator = self.operator
         right = [
             right_item.juliaize()
             for right_item in self.right
             ]
+        if len(left) == len(right) and operator == '=':
+            for left_item, right_item in itertools.izip(left, right):
+                if isinstance(left_item, parser.Variable):
+                    assert left_item is not right_item
+                    left_item.value = right_item
+
         if len(left) == 1:
             variable = left[0]
             if isinstance(variable, parser.Variable) and isinstance(variable.value, parser.Call):
@@ -353,7 +391,7 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
             container = container,
             hint = self.hint,
             left = left,
-            operator = self.operator,
+            operator = operator,
             parser = self.parser,
             right = right,
             )
@@ -381,8 +419,11 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
                 node_value = parent_node.value['children'].get(self.name)
                 if node_value is None:
                     # Dirty hack for tax_hab formula.
-                    assert self.name in (u'taux_plein', u'taux_reduit'), self.name
-                    node_value = parent_node.value['children']['taux']
+                    if self.name == u'taux':
+                        node_value = parent_node.value['children']['taux_plein']
+                    else:
+                        assert self.name in (u'taux_plein', u'taux_reduit'), self.name
+                        node_value = parent_node.value['children']['taux']
                 node_type = node_value['@type']
                 if node_type == u'Node':
                     hint = parser.CompactNode(
@@ -492,7 +533,39 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
         if issubclass(parser.Array, expected):
             function = self.subject.guess(parser.Variable)
             if function is not None:
-                if function.name in (u'max', u'min'):
+                if function.name in (u'any_person_in_entity', u'sum_person_in_entity'):
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = parser.entity_class,
+                        parser = parser,
+                        )
+                elif function.name == u'entity_to_person':
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = parser.person_class,
+                        parser = parser,
+                        )
+                elif function.name in (u'max', u'min'):
                     for argument in self.positional_arguments:
                         array = argument.guess(parser.Array)
                         if array is not None:
@@ -503,13 +576,78 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                 entity_class = array.entity_class,
                                 parser = parser,
                                 )
-        if issubclass(parser.Boolean, expected):
+                elif function.name == u'single_person_in_entity':
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        entity_class = parser.entity_class,
+                        parser = parser,
+                        )
+        elif issubclass(parser.Boolean, expected):
             function = self.subject.guess(parser.Variable)
             if function is not None:
                 if function.name in (u'all', u'any', u'isempty'):
                     return parser.Boolean(
                         parser = parser,
                         )
+        elif issubclass(parser.UniformDictionary, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name == u'split_person_by_role':
+                    variable = self.positional_arguments[0].guess(parser.Variable)
+                    if variable is None:
+                        cell_wrapper = None
+                    else:
+                        variable_name = variable.name
+                        if variable_name.endswith(u'_holder'):
+                            variable_name = variable_name[:-len(u'_holder')]
+                        tax_benefit_system = parser.tax_benefit_system
+                        column = tax_benefit_system.column_by_name[variable_name]
+                        cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.UniformDictionary(
+                        julia = True,
+                        key = parser.Role(
+                            parser = parser,
+                            ),
+                        parser = parser,
+                        value = parser.Array(
+                            cell = cell_wrapper,
+                            entity_class = parser.entity_class,
+                            parser = parser,
+                            ),
+                        )
+        elif issubclass(parser.UniformIterator, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name == u'keys':
+                    uniform_dictionary = self.positional_arguments[0].guess(parser.UniformDictionary)
+                    if uniform_dictionary is not None:
+                        return parser.UniformIterator(
+                            items = [uniform_dictionary.key],
+                            parser = parser,
+                            )
+                elif function.name == 'values':
+                    uniform_dictionary = self.positional_arguments[0].guess(parser.UniformDictionary)
+                    if uniform_dictionary is not None:
+                        return parser.UniformIterator(
+                            items = [uniform_dictionary.value],
+                            parser = parser,
+                            )
+
+            uniform_dictionary = self.guess(parser.UniformDictionary)
+            if uniform_dictionary is not None:
+                uniform_iterator = uniform_dictionary.guess(parser.UniformIterator)
+                if uniform_iterator is not None:
+                    return uniform_iterator
 
         return None
 
@@ -538,7 +676,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                         keyword_argument = keyword_argument,
                         named_arguments = named_arguments,
                         parser = parser,
-                        positional_arguments = [method_subject] + positional_arguments,
+                        positional_arguments = [method_subject.testize(allow_array = True)] + positional_arguments,
                         star_argument = star_argument,
                         subject = parser.Variable(
                             name = method_name,
@@ -696,6 +834,37 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser = parser,
                             ),
                         )
+            elif method_name == 'iterkeys':
+                method_subject = subject.subject
+                assert len(named_arguments) == 0, named_arguments
+                assert len(positional_arguments) == 0, positional_arguments
+                return parser.Call(
+                    container = container,
+                    parser = parser,
+                    positional_arguments = [method_subject],
+                    subject = parser.Variable(
+                        name = u'keys',
+                        parser = parser,
+                        ),
+                    )
+            elif method_name == 'iteritems':
+                method_subject = subject.subject
+                assert len(named_arguments) == 0, named_arguments
+                assert len(positional_arguments) == 0, positional_arguments
+                return method_subject
+            elif method_name == 'itervalues':
+                method_subject = subject.subject
+                assert len(named_arguments) == 0, named_arguments
+                assert len(positional_arguments) == 0, positional_arguments
+                return parser.Call(
+                    container = container,
+                    parser = parser,
+                    positional_arguments = [method_subject],
+                    subject = parser.Variable(
+                        name = u'values',
+                        parser = parser,
+                        ),
+                    )
             elif method_name == 'legislation_at':
                 method_subject = subject.subject
                 if method_subject.guess(parser.Simulation):
@@ -753,7 +922,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     if isinstance(delta, parser.String) and delta.value == 'first-of':
                         return parser.Call(
                             container = container,
-                            hint = parser.Instant(parser = parser),
+                            hint = parser.Period(parser = parser),
                             parser = parser,
                             positional_arguments = [method_subject],
                             subject = parser.Variable(
@@ -865,12 +1034,12 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = left,
+                                value = left.testize(allow_array = True),
                                 ),
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = right,
+                                value = right.testize(allow_array = True),
                                 ),
                             ],
                         operator = u'&',
@@ -936,7 +1105,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     value = parser.ParentheticalExpression(
                         container = container,
                         parser = parser,
-                        value = value,
+                        value = value.testize(allow_array = True),
                         ),
                     parser = parser,
                     )
@@ -952,12 +1121,12 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = left,
+                                value = left.testize(allow_array = True),
                                 ),
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = right,
+                                value = right.testize(allow_array = True),
                                 ),
                             ],
                         operator = u'|',
@@ -976,12 +1145,12 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = left,
+                                value = left.testize(allow_array = True),
                                 ),
                             parser.ParentheticalExpression(
                                 container = container,
                                 parser = parser,
-                                value = right,
+                                value = right.testize(allow_array = True),
                                 ),
                             ],
                         operator = u'$',
@@ -1042,7 +1211,7 @@ class Comparison(JuliaCompilerMixin, formulas_parsers_2to3.Comparison):
             operator = u'==='
         elif operator == u'is not':
             operator = u'!=='
-        elif operator in (u'==', u'>', u'>=', u'<', u'<=', u'!=') and self.guess(self.parser.Array):
+        elif operator in (u'==', u'>', u'>=', u'<', u'<=', u'!=') and self.guess(self.parser.Array) is not None:
             operator = u'.{}'.format(operator)
         return u'{} {} {}'.format(self.left.source_julia(depth = depth), operator,
             self.right.source_julia(depth = depth))
@@ -1093,20 +1262,10 @@ class Factor(JuliaCompilerMixin, formulas_parsers_2to3.Factor):
 class For(JuliaCompilerMixin, formulas_parsers_2to3.For):
     def juliaize(self):
         parser = self.parser
-        # Convert variables to Julia only once, during assignment.
-        variable_by_name = collections.OrderedDict(
-            (
-                name,
-                variable.__class__(
-                    container = variable.container,
-                    hint = variable.hint,
-                    name = variable.name,
-                    parser = parser,
-                    value = variable.value.juliaize() if variable.value is not None else None,
-                    ).juliaize(),
-                )
-            for name, variable in self.variable_by_name.iteritems()
-            )
+
+        for variable in self.variable_by_name.itervalues():
+            if variable.value is not None:
+                variable.value = variable.value.juliaize()
 
         return self.__class__(
             container = self.container,
@@ -1117,7 +1276,7 @@ class For(JuliaCompilerMixin, formulas_parsers_2to3.For):
                 ],
             iterator = self.iterator.juliaize(),
             parser = parser,
-            variable_by_name = variable_by_name,
+            variable_by_name = self.variable_by_name,
             )
 
     def source_julia(self, depth = 0):
@@ -1136,20 +1295,10 @@ class For(JuliaCompilerMixin, formulas_parsers_2to3.For):
 class Function(JuliaCompilerMixin, formulas_parsers_2to3.Function):
     def juliaize(self):
         parser = self.parser
-        # Convert variables to Julia only once, during assignment.
-        variable_by_name = collections.OrderedDict(
-            (
-                name,
-                variable.__class__(
-                    container = variable.container,
-                    hint = variable.hint,
-                    name = variable.name,
-                    parser = parser,
-                    value = variable.value.juliaize() if variable.value is not None else None,
-                    ).juliaize(),
-                )
-            for name, variable in self.variable_by_name.iteritems()
-            )
+
+        for variable in self.variable_by_name.itervalues():
+            if variable.value is not None:
+                variable.value = variable.value.juliaize()
 
         return self.__class__(
             container = self.container,
@@ -1166,9 +1315,12 @@ class Function(JuliaCompilerMixin, formulas_parsers_2to3.Function):
                 ),
             parser = parser,
             positional_parameters = self.positional_parameters,
-            # returns = self.returns
+            returns = [
+                statement.juliaize()
+                for statement in self.returns
+                ] if self.returns else None,
             star_name = self.star_name,
-            variable_by_name = variable_by_name,
+            variable_by_name = self.variable_by_name,
             )
 
     def source_julia(self, depth = 0):
@@ -1409,6 +1561,11 @@ class Return(JuliaCompilerMixin, formulas_parsers_2to3.Return):
         return u"return {}".format(self.value.source_julia(depth = depth))
 
 
+class Role(JuliaCompilerMixin, formulas_parsers_2to3.Role):
+    def juliaize(self):
+        return self  # A role never appears in formulas => julialize is a fake one.
+
+
 class Simulation(JuliaCompilerMixin, formulas_parsers_2to3.Simulation):
     def juliaize(self):
         return self
@@ -1420,6 +1577,11 @@ class String(JuliaCompilerMixin, formulas_parsers_2to3.String):
 
     def source_julia(self, depth = 0):
         return generate_string_julia_source(self.value)
+
+
+class TaxScale(JuliaCompilerMixin, formulas_parsers_2to3.TaxScale):
+    def juliaize(self):
+        return self  # A tax-scale never appears in formulas => julialize is a fake one.
 
 
 class Term(JuliaCompilerMixin, formulas_parsers_2to3.Term):
@@ -1483,9 +1645,49 @@ class Tuple(JuliaCompilerMixin, formulas_parsers_2to3.Tuple):
             ))
 
 
+class UniformDictionary(JuliaCompilerMixin, formulas_parsers_2to3.UniformDictionary):
+    julia = False
+
+    def __init__(self, container = None, julia = False, key = None, node = None, parser = None, value = None):
+        super(UniformDictionary, self).__init__(container = container, key = key, node = node, parser = parser,
+            value = value)
+        assert isinstance(julia, bool)
+        if julia:
+            self.julia = julia
+
+    def guess(self, expected):
+        if self.julia:
+            # When iterating on a Julia dictionary, the iterator is a (key, value) couple, not a key only (as in
+            # Python).
+            parser = self.parser
+            if issubclass(parser.UniformIterator, expected):
+                return parser.UniformIterator(
+                    items = [
+                        self.key,
+                        self.value,
+                        ],
+                    parser = parser,
+                    )
+
+        return super(UniformDictionary, self).guess(expected)
+
+
 class Variable(JuliaCompilerMixin, formulas_parsers_2to3.Variable):
     def juliaize(self):
-        return self  # Conversion of variable to Julia is done only once, during assignment.
+        # Cloning variable and doing value = self.value.juliaize() may create an infinite loop (for expressions like
+        # period = period). So instead of juliazing value, we reuse the value already juliaized during variable
+        # assignement.
+        # self.value = self.container.variable_by_name[self.name]
+        return self
+        # return self.__class__(
+        #     container = self.container,
+        #     hint = self.hint,
+        #     name = self.name,
+        #     parser = self.parser,
+        #     # Doing value = self.value.juliaize() may create an infinite loop (for expressions like period = period)
+        #     # So instead of juliazing value, we reuse the value already juliaized during variable assignement.
+        #     value = self.container.variable_by_name[self.name],
+        #     ).juliaize()
 
     def source_julia(self, depth = 0):
         return self.parser.juliaize_name(self.name)
@@ -1600,6 +1802,7 @@ class Parser(formulas_parsers_2to3.Parser):
     AndExpression = AndExpression
     AndTest = AndTest
     ArithmeticExpression = ArithmeticExpression
+    Array = Array
     Assert = Assert
     Assignment = Assignment
     Attribute = Attribute
@@ -1627,11 +1830,14 @@ class Parser(formulas_parsers_2to3.Parser):
     ParentheticalExpression = ParentheticalExpression
     Period = Period
     Return = Return
+    Role = Role
     Simulation = Simulation
     String = String
+    TaxScale = TaxScale
     Term = Term
     Test = Test
     Tuple = Tuple
+    UniformDictionary = UniformDictionary
     Variable = Variable
     XorExpression = XorExpression
 
@@ -2008,6 +2214,8 @@ def main():
     parser.add_argument('julia_package_dir', help = u'path of the directory of the OpenFisca Julia package')
     parser.add_argument('-c', '--country-package', default = 'openfisca_france',
         help = u'name of the OpenFisca package to use for country-specific variables & formulas')
+    parser.add_argument('-f', '--formula',
+        help = u'name of the OpenFisca variable to convert (all are converted by default)')
     parser.add_argument('-v', '--verbose', action = 'store_true', default = False, help = "increase output verbosity")
     args = parser.parse_args()
     logging.basicConfig(level = logging.DEBUG if args.verbose else logging.WARNING, stream = sys.stdout)
@@ -2043,7 +2251,11 @@ def main():
 
     input_variable_definition_julia_source_by_name = collections.OrderedDict()
     julia_source_by_name_by_module_name = {}
-    for column in tax_benefit_system.column_by_name.itervalues():
+    if args.formula:
+        columns = [tax_benefit_system.column_by_name[args.formula]]
+    else:
+        columns = tax_benefit_system.column_by_name.itervalues()
+    for column in columns:
         print column.name
         parser.column = column
 
@@ -2158,33 +2370,38 @@ def main():
         module_name = module_name[len('openfisca_france.model.'):]
         julia_source_by_name_by_module_name.setdefault(module_name, {})[function_wrapper.name] = julia_source
 
-    julia_path = os.path.join(args.julia_package_dir, 'src', 'input_variables.jl')
-    with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
-        julia_file.write(julia_file_header)
-        julia_file.write(u'\n')
-        for input_variable_definition_julia_source in input_variable_definition_julia_source_by_name.itervalues():
-            julia_file.write(u'\n')
-            julia_file.write(input_variable_definition_julia_source)
-            julia_file.write(u'\n')
-
-    julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas.jl')
-    with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
-        julia_file.write(julia_file_header)
-        julia_file.write(u'\n\n')
-        for module_name in sorted(julia_source_by_name_by_module_name.iterkeys()):
-            julia_file.write(u'include("formulas/{}.jl")\n'.format(module_name.replace(u'.', u'/')))
-
-    for module_name, julia_source_by_name in julia_source_by_name_by_module_name.iteritems():
-        julia_relative_path = os.path.join(*module_name.split('.')) + '.jl'
-        julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas', julia_relative_path)
-        julia_dir = os.path.dirname(julia_path)
-        if not os.path.exists(julia_dir):
-            os.makedirs(julia_dir)
+    if args.formula:
+        for module_name, julia_source_by_name in julia_source_by_name_by_module_name.iteritems():
+            for column_name, julia_source in sorted(julia_source_by_name.iteritems()):
+                print(julia_source)
+    else:
+        julia_path = os.path.join(args.julia_package_dir, 'src', 'input_variables.jl')
         with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
             julia_file.write(julia_file_header)
-            for column_name, julia_source in sorted(julia_source_by_name.iteritems()):
+            julia_file.write(u'\n')
+            for input_variable_definition_julia_source in input_variable_definition_julia_source_by_name.itervalues():
                 julia_file.write(u'\n')
-                julia_file.write(julia_source)
+                julia_file.write(input_variable_definition_julia_source)
+                julia_file.write(u'\n')
+
+        julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas.jl')
+        with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
+            julia_file.write(julia_file_header)
+            julia_file.write(u'\n\n')
+            for module_name in sorted(julia_source_by_name_by_module_name.iterkeys()):
+                julia_file.write(u'include("formulas/{}.jl")\n'.format(module_name.replace(u'.', u'/')))
+
+        for module_name, julia_source_by_name in julia_source_by_name_by_module_name.iteritems():
+            julia_relative_path = os.path.join(*module_name.split('.')) + '.jl'
+            julia_path = os.path.join(args.julia_package_dir, 'src', 'formulas', julia_relative_path)
+            julia_dir = os.path.dirname(julia_path)
+            if not os.path.exists(julia_dir):
+                os.makedirs(julia_dir)
+            with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
+                julia_file.write(julia_file_header)
+                for column_name, julia_source in sorted(julia_source_by_name.iteritems()):
+                    julia_file.write(u'\n')
+                    julia_file.write(julia_source)
 
     return 0
 

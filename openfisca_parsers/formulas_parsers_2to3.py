@@ -549,10 +549,27 @@ class Call(AbstractWrapper):
             return guessed
 
         parser = self.parser
+
+        function = self.subject.guess(parser.Function)
+        if function is not None:
+            assert function.returns, "Function {} has no return statement".format(function.name)
+            return function.returns[-1].guess(expected)
+
         if issubclass(parser.Array, expected):
             function = self.subject.guess(parser.Variable)
             if function is not None:
-                if function.name in (u'max_', u'min_'):
+                if function.name in (u'and_', u'or_', u'xor_'):
+                    for argument in self.positional_arguments:
+                        array = argument.guess(parser.Array)
+                        if array is not None:
+                            return parser.Array(
+                                cell = parser.Boolean(
+                                    parser = parser,
+                                    ),
+                                entity_class = array.entity_class,
+                                parser = parser,
+                                )
+                elif function.name in (u'max_', u'min_'):
                     for argument in self.positional_arguments:
                         array = argument.guess(parser.Array)
                         if array is not None:
@@ -726,7 +743,6 @@ class Call(AbstractWrapper):
                     variable = self.positional_arguments[0].guess(parser.Variable)
                     if variable is None:
                         cell_wrapper = None
-                        entity_class = None
                     else:
                         variable_name = variable.name
                         if variable_name.endswith(u'_holder'):
@@ -745,6 +761,33 @@ class Call(AbstractWrapper):
                             parser = parser,
                             ),
                         )
+        elif issubclass(parser.UniformIterator, expected):
+            method = self.subject.guess(parser.Attribute)
+            if method is not None:
+                if method.name == 'iterkeys':
+                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                    if uniform_dictionary is not None:
+                        return parser.UniformIterator(
+                            items = [uniform_dictionary.key],
+                            parser = parser,
+                            )
+                elif method.name == 'iteritems':
+                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                    if uniform_dictionary is not None:
+                        return parser.UniformIterator(
+                            items = [
+                                uniform_dictionary.key,
+                                uniform_dictionary.value,
+                                ],
+                            parser = parser,
+                            )
+                elif method.name == 'itervalues':
+                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                    if uniform_dictionary is not None:
+                        return parser.UniformIterator(
+                            items = [uniform_dictionary.value],
+                            parser = parser,
+                            )
 
         return None
 
@@ -1159,6 +1202,29 @@ class Enum(AbstractWrapper):
         if value is not None:
             self.value = value
 
+    def guess(self, expected):
+        guessed = super(Enum, self).guess(expected)
+        if guessed is not None:
+            return guessed
+
+        parser = self.parser
+        if issubclass(parser.UniformIterator, expected):
+            return parser.UniformIterator(
+                items = [
+                    # Item label
+                    parser.String(
+                        parser = parser,
+                        ),
+                    # Item index
+                    parser.Number(
+                        parser = parser,
+                        ),
+                    ],
+                parser = parser,
+                )
+
+        return None
+
 
 # class Entity(AbstractWrapper):
 #     pass
@@ -1264,7 +1330,25 @@ class For(AbstractWrapper):
             self.body = body
         assert isinstance(iterator, AbstractWrapper)
         self.iterator = iterator
+        guessed_iterator = iterator.guess(parser.UniformIterator)
+        if guessed_iterator is None:
+            if len(variable_by_name) == 1 and 'bar' in variable_by_name:
+                guessed_iterator = parser.UniformIterator(
+                    container = container,
+                    items = [
+                        parser.TaxScale(
+                            container = container,
+                            parser = parser,
+                            ),
+                        ],
+                    parser = parser,
+                    )
+            else:
+                assert False, "{} has no iterator".format(iterator)
+
         assert isinstance(variable_by_name, collections.OrderedDict)
+        for variable, value in itertools.izip(variable_by_name.itervalues(), guessed_iterator.items):
+            variable.value = value
         self.variable_by_name = variable_by_name
         container.variable_by_name.update(variable_by_name)
 
@@ -1838,11 +1922,11 @@ class Module(AbstractWrapper):
             and_ = parser.Variable(container = self, name = u'and_', parser = parser),
             around = parser.Variable(container = self, name = u'around', parser = parser),
             CAT = parser.Variable(container = self, name = u'CAT', parser = parser,
-                value = parser.Enum(parser = parser, value = None)),  # TODO
+                value = parser.Enum(parser = parser)),
             ceil = parser.Variable(container = self, name = u'ceil', parser = parser),
             CHEF = parser.Variable(container = self, name = u'CHEF', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
-            combine_tax_scales = parser.Variable(container = self, name = u'combine_tax_scales', parser = parser),
+            # combine_tax_scales = parser.Variable(container = self, name = u'combine_tax_scales', parser = parser),
             CONJ = parser.Variable(container = self, name = u'CONJ', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
             CREF = parser.Variable(container = self, name = u'CREF', parser = parser,
@@ -1889,13 +1973,13 @@ class Module(AbstractWrapper):
                 value = parser.Number(parser = parser, value = 0)),
             round = parser.Variable(container = self, name = u'round', parser = parser),
             round_ = parser.Variable(container = self, name = u'round_', parser = parser),
-            scale_tax_scales = parser.Variable(container = self, name = u'scale_tax_scales', parser = parser),
+            # scale_tax_scales = parser.Variable(container = self, name = u'scale_tax_scales', parser = parser),
             SCOLARITE_COLLEGE = parser.Variable(container = self, name = u'SCOLARITE_COLLEGE', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
             startswith = parser.Variable(container = self, name = u'startswith', parser = parser),
             TAUX_DE_PRIME = parser.Variable(container = self, name = u'TAUX_DE_PRIME', parser = parser,
                 value = parser.Number(parser = parser, value = 1 / 4)),
-            TaxScalesTree = parser.Variable(container = self, name = u'TaxScalesTree', parser = parser),
+            # TaxScalesTree = parser.Variable(container = self, name = u'TaxScalesTree', parser = parser),
             timedelta64 = parser.Variable(container = self, name = u'timedelta64', parser = parser),
             VOUS = parser.Variable(container = self, name = u'VOUS', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
@@ -2035,9 +2119,6 @@ class Return(AbstractWrapper):
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
-        containing_function = self.containing_function
-        containing_function.returns.append(self)
-
     def guess(self, expected):
         guessed = super(Return, self).guess(expected)
         if guessed is not None:
@@ -2059,7 +2140,12 @@ class Return(AbstractWrapper):
         assert children[0].type == tokens.NAME and children[0].value == 'return'
         value = parser.parse_value(children[1], container = container)
 
-        return cls(container = container, node = node, parser = parser, value = value)
+        self = cls(container = container, node = node, parser = parser, value = value)
+
+        containing_function = self.containing_function
+        containing_function.returns.append(self)
+
+        return self
 
 
 class Role(Number):
@@ -2075,9 +2161,10 @@ class String(AbstractWrapper):
 
     def __init__(self, container = None, node = None, parser = None, value = None):
         super(String, self).__init__(container = container, node = node, parser = parser)
-        assert isinstance(value, unicode), "Unexpected value for string: {} of type {}".format(value,
-            type(value))
-        self.value = value
+        if value is not None:
+            assert isinstance(value, unicode), "Unexpected value for string: {} of type {}".format(value,
+                type(value))
+            self.value = value
 
     @classmethod
     def parse(cls, node, container = None, parser = None):
@@ -2098,11 +2185,13 @@ class String(AbstractWrapper):
 
 
 # class Structure(AbstractWrapper):
-#     items = None
-
-#     def __init__(self, node, items = None, parser = None):
-#         super(Structure, self).__init__(node, parser = parser)
-#         self.items = items
+#     value = None  # A list or a dictionary
+#
+#     def __init__(self, container = None, hint = None, node = None, parser = None, value = None):
+#         super(Structure, self).__init__(container = container, hint = hint, node = node, parser = parser)
+#         assert isinstance(value, (dict, list, tuple)), "Unexpected value for structure: {} of type {}".format(value,
+#             type(value))
+#         self.value = value
 
 
 class TaxScale(AbstractWrapper):
@@ -2270,14 +2359,28 @@ class UniformDictionary(AbstractWrapper):
         assert isinstance(value, AbstractWrapper)
         self.value = value
 
+    def guess(self, expected):
+        guessed = super(UniformDictionary, self).guess(expected)
+        if guessed is not None:
+            return guessed
 
-# class UniformIterator(AbstractWrapper):
-#     item = None
+        parser = self.parser
+        if issubclass(parser.UniformIterator, expected):
+            return parser.UniformIterator(
+                items = [self.key],
+                parser = parser,
+                )
 
-#     def __init__(self, node, item = None, parser = None):
-#         super(UniformIterator, self).__init__(node, parser = parser)
-#         if item is not None:
-#             self.item = item
+        return None
+
+
+class UniformIterator(AbstractWrapper):
+    items = None  # A list of values (one for iterkeys & itervalues, 2 for iteritems) that iterate.
+
+    def __init__(self, container = None, items = None, node = None, parser = None):
+        super(UniformIterator, self).__init__(container = container, node = node, parser = parser)
+        assert isinstance(items, list)
+        self.items = items
 
 
 # class UniformList(AbstractWrapper):
@@ -2300,6 +2403,9 @@ class Variable(AbstractWrapper):
         if value is not None:
             assert isinstance(value, AbstractWrapper)
             self.value = value
+
+    def __repr__(self):
+        return u'<Variable {}>'.format(self.name)
 
     def guess(self, expected):
         guessed = super(Variable, self).guess(expected)
@@ -2489,7 +2595,7 @@ class Parser(conv.State):
     TupleGenerator = TupleGenerator
     Type = Type
     UniformDictionary = UniformDictionary
-    # UniformIterator = UniformIterator
+    UniformIterator = UniformIterator
     # UniformList = UniformList
     Variable = Variable
     XorExpression = XorExpression
