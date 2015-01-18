@@ -414,21 +414,23 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
         subject = self.subject.juliaize()
         parent_node = subject.guess(parser.CompactNode)
         if parent_node is not None:
-            # TODO: Hande cotisations_employeur & cotisations_salarie.
-            if self.name not in ('cotisations_employeur', 'cotisations_salarie'):
-                node_value = parent_node.value['children'].get(self.name)
+            key = self.name
+            assert key is not None
+            key = unicode(key)
+            if key not in ('iterkeys', 'iteritems', 'itervalues', 'keys', 'items', 'values'):
+                node_value = parent_node.value['children'].get(key)
                 if node_value is None:
                     # Dirty hack for tax_hab formula.
-                    if self.name == u'taux':
+                    if key == u'taux':
                         node_value = parent_node.value['children']['taux_plein']
                     else:
-                        assert self.name in (u'taux_plein', u'taux_reduit'), self.name
+                        assert key in (u'taux_plein', u'taux_reduit'), key
                         node_value = parent_node.value['children']['taux']
                 node_type = node_value['@type']
                 if node_type == u'Node':
                     hint = parser.CompactNode(
                         is_reference = parent_node.is_reference,
-                        name = unicode(self.name),
+                        name = unicode(key),
                         parent = parent_node,
                         parser = parser,
                         value = node_value,
@@ -447,58 +449,24 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
                     hint = parser.TaxScale(
                         parser = parser,
                         )
-                if isinstance(subject, parser.Call):
-                    function = subject.subject
-                    if isinstance(function, parser.Variable) and function.name == u'legislation_at':
-                        # Insert path of node in "legislation_at(simulation, path, period, ...)" call and eventually
-                        # rename "legislation_at" to "parameter_at" or "tax_scale_at".
-                        positional_arguments = subject.positional_arguments[:]
-                        if isinstance(positional_arguments[1], parser.String):
-                            positional_arguments[1] = parser.String(
-                                container = self.container,
-                                parser = parser,
-                                value = u'{}.{}'.format(positional_arguments[1].value, self.name),
-                                )
-                        else:
-                            positional_arguments.insert(1, parser.String(
-                                container = self.container,
-                                parser = parser,
-                                value = unicode(self.name),
-                                ))
-                        return parser.Call(
-                            container = self.container,
-                            hint = hint,
-                            keyword_argument = subject.keyword_argument,
-                            named_arguments = subject.named_arguments,
-                            parser = parser,
-                            positional_arguments = positional_arguments,
-                            star_argument = subject.star_argument,
-                            subject = parser.Variable(
-                                container = self.container,
-                                name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
-                                    if node_type == u'Parameter' else u'tax_scale_at'),
-                                parser = parser,
-                                ),
-                            )
-                # Generate "legislation_at(x, path)".
-                return parser.Call(
+                return parser.Key(
                     container = self.container,
                     hint = hint,
                     parser = parser,
-                    positional_arguments = [
-                        subject,
-                        parser.String(
-                            container = self.container,
-                            parser = parser,
-                            value = unicode(self.name),
-                            )
-                        ],
-                    subject = parser.Variable(
+                    subject = subject,
+                    value = parser.String(
                         container = self.container,
-                        name = (u'legislation_at' if node_type == u'Node' else u'parameter_at'
-                            if node_type == u'Parameter' else u'tax_scale_at'),
                         parser = parser,
-                        ),
+                        value = key,
+                        ).juliaize(),
+                    )
+        else:
+            parent_node = subject.guess(parser.StemNode)
+            if parent_node is not None:
+                hint = parser.StemNode(
+                    is_reference = parent_node.is_reference,
+                    parent = parent_node,
+                    parser = parser,
                     )
         return self.__class__(
             container = self.container,
@@ -592,6 +560,20 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                         entity_class = parser.entity_class,
                         parser = parser,
                         )
+                elif function.name == u'zeros':
+                    assert len(self.positional_arguments) == 1, self.positional_arguments
+                    assert len(self.named_arguments) <= 1, self.named_arguments
+                    dtype_wrapper = self.named_arguments.get('dtype')
+                    if dtype_wrapper is None:
+                        cell_type = None
+                    else:
+                        dtype_wrapper = dtype_wrapper.guess(parser.String) or dtype_wrapper.guess(parser.Type)
+                        cell_type = dtype_wrapper.value
+                    cell_wrapper = parser.get_cell_wrapper(container = self.container, type = cell_type)
+                    return parser.Array(
+                        cell = cell_wrapper,
+                        parser = parser,
+                        )
         elif issubclass(parser.Boolean, expected):
             function = self.subject.guess(parser.Variable)
             if function is not None:
@@ -599,6 +581,11 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     return parser.Boolean(
                         parser = parser,
                         )
+        elif issubclass(parser.Number, expected):
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name == 'length':
+                    return parser.Number(parser = parser)
         elif issubclass(parser.UniformDictionary, expected):
             function = self.subject.guess(parser.Variable)
             if function is not None:
@@ -834,6 +821,19 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser = parser,
                             ),
                         )
+            elif method_name == 'floor':
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'math':
+                    assert len(named_arguments) == 0, named_arguments
+                    return parser.Call(
+                        container = container,
+                        parser = parser,
+                        positional_arguments = positional_arguments,
+                        subject = parser.Variable(
+                            name = u'floor',
+                            parser = parser,
+                            ),
+                        )
             elif method_name == 'iterkeys':
                 method_subject = subject.subject
                 assert len(named_arguments) == 0, named_arguments
@@ -917,12 +917,46 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                     ),
                                 )
                 elif method_subject.guess(parser.Period):
+                    unit = method_subject.guess(parser.Period).unit
                     assert len(positional_arguments) == 1, positional_arguments
                     delta = positional_arguments[0]
-                    if isinstance(delta, parser.String) and delta.value == 'first-of':
+                    if isinstance(delta, (parser.Factor, parser.Number)):
+                        if isinstance(delta, parser.Factor):
+                            assert delta.operator == u'-'
+                            delta = -int(delta.operand.value)
+                        else:
+                            delta = int(delta.value)
+                        return parser.ArithmeticExpression(
+                            container = container,
+                            hint = parser.Period(parser = parser, unit = unit),
+                            items = [
+                                method_subject,
+                                u'+' if delta >= 0 else u'-',
+                                parser.Call(
+                                    container = container,
+                                    parser = parser,
+                                    positional_arguments = [
+                                        parser.Number(
+                                            parser = parser,
+                                            value = abs(delta),
+                                            ),
+                                        ],
+                                    subject = parser.Variable(
+                                        name = dict(
+                                            day = u'Day',
+                                            month = u'Month',
+                                            year = u'Year',
+                                            )[unit],
+                                        parser = parser,
+                                        ),
+                                    ),
+                                ],
+                            parser = parser,
+                            )
+                    elif isinstance(delta, parser.String) and delta.value == 'first-of':
                         return parser.Call(
                             container = container,
-                            hint = parser.Period(parser = parser),
+                            hint = parser.Period(parser = parser, unit = unit),
                             parser = parser,
                             positional_arguments = [method_subject],
                             subject = parser.Variable(
@@ -938,7 +972,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     if isinstance(unit, parser.String) and unit.value == 'month':
                         return parser.Call(
                             container = container,
-                            hint = parser.Period(parser = parser),
+                            hint = parser.Period(parser = parser, unit = unit.value),
                             parser = parser,
                             positional_arguments = [method_subject] + positional_arguments[1:],
                             subject = parser.Variable(
@@ -949,7 +983,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     if isinstance(unit, parser.String) and unit.value == 'year':
                         return parser.Call(
                             container = container,
-                            hint = parser.Period(parser = parser),
+                            hint = parser.Period(parser = parser, unit = unit.value),
                             parser = parser,
                             positional_arguments = [method_subject] + positional_arguments[1:],
                             subject = parser.Variable(
@@ -1075,6 +1109,18 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                 argument = positional_arguments[0]
                 assert argument.guess(parser.Date) is not None or argument.guess(parser.Instant) is not None, argument
                 return argument
+            elif function_name == 'len':
+                assert len(positional_arguments) == 1, positional_arguments
+                return parser.Call(
+                    container = container,
+                    hint = self.hint,
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'length',
+                        parser = parser,
+                        ),
+                    )
             elif function_name == 'max_':
                 return parser.Call(
                     container = container,
@@ -1154,6 +1200,29 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                 ),
                             ],
                         operator = u'$',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == u'zeros':
+                assert len(positional_arguments) == 1, positional_arguments
+                length = positional_arguments[0]
+                assert len(named_arguments) <= 1, named_arguments
+                dtype_wrapper = named_arguments.get('dtype')
+                if dtype_wrapper is None:
+                    cell_type = None
+                else:
+                    dtype_wrapper = dtype_wrapper.guess(parser.String) or dtype_wrapper.guess(parser.Type)
+                    cell_type = dtype_wrapper.value
+                cell_wrapper = parser.get_cell_wrapper(container = self.container, type = cell_type)
+                return parser.Call(
+                    container = container,
+                    parser = parser,
+                    positional_arguments = [
+                        cell_wrapper.typeize(),
+                        length,
+                        ],
+                    subject = parser.Variable(
+                        name = u'zeros',
                         parser = parser,
                         ),
                     )
@@ -1369,7 +1438,7 @@ class Function(JuliaCompilerMixin, formulas_parsers_2to3.Function):
                     if u'\n' in value:
                         value += u'\n{}'.format(u'  ' * depth)
                 statement.value = value
-            statements.append(u'{}{}\n'.format(u'  ' * depth, statement.source_julia(depth = depth + 1)))
+            statements.append(u'{}{}\n'.format(u'  ' * depth, statement.source_julia(depth = depth)))
         return u''.join(statements)
 
 
@@ -1420,11 +1489,71 @@ class Instant(JuliaCompilerMixin, formulas_parsers_2to3.Instant):
 
 class Key(JuliaCompilerMixin, formulas_parsers_2to3.Key):
     def juliaize(self):
+        parser = self.parser
+        subject = self.subject.juliaize()
+        parent_node = subject.guess(parser.CompactNode)
+        if parent_node is not None:
+            value = self.value.guess(parser.String)
+            key = value.value if value is not None else None
+            if key is None:
+                hint = parser.StemNode(
+                    is_reference = parent_node.is_reference,
+                    parent = parent_node,
+                    parser = parser,
+                    )
+            else:
+                key = unicode(key)
+                node_value = parent_node.value['children'].get(key)
+                if node_value is None:
+                    # Dirty hack for tax_hab formula.
+                    if key == u'taux':
+                        node_value = parent_node.value['children']['taux_plein']
+                    else:
+                        assert key in (u'taux_plein', u'taux_reduit'), key
+                        node_value = parent_node.value['children']['taux']
+                node_type = node_value['@type']
+                if node_type == u'Node':
+                    hint = parser.CompactNode(
+                        is_reference = parent_node.is_reference,
+                        name = unicode(key),
+                        parent = parent_node,
+                        parser = parser,
+                        value = node_value,
+                        )
+                elif node_type == u'Parameter':
+                    if node_value.get('format') == 'boolean':
+                        hint = parser.Boolean(
+                            parser = parser,
+                            )
+                    else:
+                        hint = parser.Number(
+                            parser = parser,
+                            )
+                else:
+                    assert node_type == u'Scale'
+                    hint = parser.TaxScale(
+                        parser = parser,
+                        )
+            return self.__class__(
+                container = self.container,
+                hint = hint,
+                parser = parser,
+                subject = subject,
+                value = self.value.juliaize(),
+                )
+        else:
+            parent_node = subject.guess(parser.StemNode)
+            if parent_node is not None:
+                hint = parser.StemNode(
+                    is_reference = parent_node.is_reference,
+                    parent = parent_node,
+                    parser = parser,
+                    )
         return self.__class__(
             container = self.container,
             hint = self.hint,
-            parser = self.parser,
-            subject = self.subject.juliaize(),
+            parser = parser,
+            subject = subject,
             value = self.value.juliaize(),
             )
 
@@ -1519,6 +1648,18 @@ class Number(JuliaCompilerMixin, formulas_parsers_2to3.Number):
 
     def source_julia(self, depth = 0):
         return unicode(self.value)
+
+    def typeize(self):
+        parser = self.parser
+        return parser.Variable(
+            name = {
+                None: u'Float32',
+                np.float32: u'Float32',
+                np.int16: u'Int16',
+                np.int32: u'Int32',
+                }[self.type],
+            parser = parser,
+            )
 
 
 class ParentheticalExpression(JuliaCompilerMixin, formulas_parsers_2to3.ParentheticalExpression):
@@ -2327,6 +2468,9 @@ def main():
             continue
 
         if column.name in (
+                'coefficient_proratisation',
+                'nombre_heures_remunerees',
+                'nombre_jours_calendaires',
                 'zone_apl',
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
