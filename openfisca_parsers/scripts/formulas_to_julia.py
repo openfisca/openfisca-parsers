@@ -743,22 +743,34 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                 parser = parser,
                                 ),
                             )
+                else:
+                    argument_variable = positional_arguments[0].guess(parser.Variable)
+                    if argument_variable is not None:
+                        if argument_variable.name == u'int16':
+                            return parser.Call(
+                                container = container,
+                                parser = parser,
+                                positional_arguments = [subject.subject],
+                                subject = parser.Variable(
+                                    name = u'int16',
+                                    parser = parser,
+                                    ),
+                                )
             elif method_name == 'calc':
                 method_subject = subject.subject
-                if method_subject.guess(parser.TaxScale):
-                    return parser.Call(
-                        container = container,
-                        hint = self.hint,
-                        keyword_argument = keyword_argument,
-                        named_arguments = named_arguments,
+                return parser.Call(
+                    container = container,
+                    hint = self.hint,
+                    keyword_argument = keyword_argument,
+                    named_arguments = named_arguments,
+                    parser = parser,
+                    positional_arguments = [method_subject] + positional_arguments,
+                    star_argument = star_argument,
+                    subject = parser.Variable(
+                        name = u'apply_tax_scale',
                         parser = parser,
-                        positional_arguments = [method_subject] + positional_arguments,
-                        star_argument = star_argument,
-                        subject = parser.Variable(
-                            name = u'apply_tax_scale',
-                            parser = parser,
-                            ),
-                        )
+                        ),
+                    )
             elif method_name in ('cast_from_entity_to_role', 'cast_from_entity_to_roles'):
                 method_subject = subject.subject
                 if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
@@ -834,6 +846,24 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             parser = parser,
                             ),
                         )
+            elif method_name == 'get':
+                method_subject = subject.subject
+                assert len(named_arguments) == 0, named_arguments
+                assert 1 <= len(positional_arguments) <= 2, positional_arguments
+                return parser.Call(
+                    container = container,
+                    parser = parser,
+                    positional_arguments = [method_subject] + positional_arguments + ([
+                        parser.Variable(
+                            name = u'nothing',
+                            parser = parser,
+                            ),
+                        ] if len(positional_arguments) < 2 else []),
+                    subject = parser.Variable(
+                        name = u'get',
+                        parser = parser,
+                        ),
+                    )
             elif method_name == 'iterkeys':
                 method_subject = subject.subject
                 assert len(named_arguments) == 0, named_arguments
@@ -1176,6 +1206,18 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                 ),
                             ],
                         operator = u'|',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == 'round_':
+                assert 1 <= len(positional_arguments) <= 2, positional_arguments
+                return parser.Call(
+                    container = container,
+                    hint = positional_arguments[0].hint,
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'round',
                         parser = parser,
                         ),
                     )
