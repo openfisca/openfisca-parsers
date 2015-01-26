@@ -1305,13 +1305,35 @@ class Class(JuliaCompilerMixin, formulas_parsers_2to3.Class):
 
 class Comparison(JuliaCompilerMixin, formulas_parsers_2to3.Comparison):
     def juliaize(self):
+        container = self.container
+        parser = self.parser
+        right = self.right.juliaize()
+        if self.operator in (u'in', u'not in'):
+            if right.guess(parser.CompactNode) is not None or right.guess(parser.StemNode) is not None \
+                    or right.guess(parser.UniformDictionary) is not None:
+                return self.__class__(
+                    container = container,
+                    hint = self.hint,
+                    left = self.left.juliaize(),
+                    operator = self.operator,
+                    parser = parser,
+                    right = parser.Call(
+                        container = container,
+                        parser = parser,
+                        positional_arguments = [right],
+                        subject = parser.Variable(
+                            name = u'keys',
+                            parser = parser,
+                            ),
+                        ),
+                    )
         return self.__class__(
-            container = self.container,
+            container = container,
             hint = self.hint,
             left = self.left.juliaize(),
             operator = self.operator,
-            parser = self.parser,
-            right = self.right.juliaize(),
+            parser = parser,
+            right = right,
             )
 
     def source_julia(self, depth = 0):
