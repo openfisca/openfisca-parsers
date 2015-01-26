@@ -70,6 +70,7 @@ class Parser(formulas_parsers_2to3.Parser):
         self.FormulaClassFileInput.parse(formula_class, parser = self)
         del self.column
         del self.input_variables
+        self.python_module_by_name.clear()
         return input_variables
 
 
