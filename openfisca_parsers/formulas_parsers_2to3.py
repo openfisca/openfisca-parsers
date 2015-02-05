@@ -544,6 +544,14 @@ class Call(AbstractWrapper):
 
         function = self.subject.guess(parser.Function)
         if function is not None:
+            if issubclass(parser.Array, expected):
+                if function.name in (u'age_aine', u'age_en_mois_benjamin', u'nb_enf'):
+                    return parser.Array(
+                        cell = parser.Number(
+                            parser = parser,
+                            ),
+                        parser = parser,
+                        )
             assert function.returns, "Function {} has no return statement".format(function.name)
             return function.returns[-1].guess(expected)
 
@@ -561,7 +569,7 @@ class Call(AbstractWrapper):
                                 entity_class = array.entity_class,
                                 parser = parser,
                                 )
-                elif function.name in (u'max_', u'min_'):
+                elif function.name in (u'floor', u'max_', u'min_', u'round_'):
                     for argument in self.positional_arguments:
                         array = argument.guess(parser.Array)
                         if array is not None:
@@ -609,7 +617,7 @@ class Call(AbstractWrapper):
                             entity_class = parser.entity_class,
                             parser = parser,
                             )
-                    if method.name in ('calculate', 'get_array', 'sum_calculate'):
+                    if method.name in ('calculate', 'divide_calculate', 'get_array', 'sum_calculate'):
                         assert len(self.positional_arguments) >= 1
                         variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
                         if variable_name_wrapper is None:
@@ -691,7 +699,7 @@ class Call(AbstractWrapper):
         elif issubclass(parser.DatedHolder, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
-                if method.name in ('compute', 'sum_compute'):
+                if method.name in ('compute', 'divide_compute', 'sum_compute'):
                     assert len(self.positional_arguments) >= 1
                     variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
                     if variable_name_wrapper is None:

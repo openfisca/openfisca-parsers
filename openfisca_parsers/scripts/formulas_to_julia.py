@@ -260,8 +260,10 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                 call_subject = call.subject
                 if isinstance(call_subject, parser.Attribute):
                     method_name = call_subject.name
-                    if method_name in ('calculate', 'compute', 'sum_calculate', 'sum_compute'):
+                    if method_name in ('calculate', 'compute', 'divide_calculate', 'divide_compute', 'sum_calculate',
+                            'sum_compute'):
                         method_julia_name = dict(
+                            divide_compute = u'divide_calculate',
                             compute = u'calculate',
                             sum_compute = u'sum_calculate',
                             ).get(method_name, method_name)
@@ -667,6 +669,35 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                         star_argument = star_argument,
                         subject = parser.Variable(
                             name = method_name,
+                            parser = parser,
+                            ),
+                        )
+            elif method_name == 'any_by_roles':
+                method_subject = subject.subject
+                if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
+                    assert len(positional_arguments) == 1, positional_arguments
+                    assert len(named_arguments) == 0, named_arguments
+                    requested_variable = positional_arguments[0]
+                    # any_person_in_entity(x, get_entity(variable), period)
+                    return parser.Call(
+                        container = container,
+                        hint = self.hint,
+                        parser = parser,
+                        positional_arguments = [
+                            requested_variable,
+                            parser.Variable(
+                                container = container,
+                                name = u'get_entity(variable)',
+                                parser = parser,
+                                ),
+                            parser.Variable(
+                                container = container,
+                                name = u'period',
+                                parser = parser,
+                                ),
+                            ],
+                        subject = parser.Variable(  # TODO: Use function call.
+                            name = u'any_person_in_entity',
                             parser = parser,
                             ),
                         )
@@ -1218,6 +1249,19 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     positional_arguments = positional_arguments,
                     subject = parser.Variable(
                         name = u'round',
+                        parser = parser,
+                        ),
+                    )
+            elif function_name == 'startswith':
+                assert len(positional_arguments) == 2, positional_arguments
+                assert len(named_arguments) == 0, named_arguments
+                return parser.Call(
+                    container = container,
+                    hint = self.hint,
+                    parser = parser,
+                    positional_arguments = positional_arguments,
+                    subject = parser.Variable(
+                        name = u'beginswith',
                         parser = parser,
                         ),
                     )
@@ -2072,8 +2116,10 @@ class Parser(formulas_parsers_2to3.Parser):
             'entity_key_plural',
             'enum',
             'formula_class',
+            'is_period_size_independent',
             'is_permanent',
             'label',
+            'law_reference',
             'max_length',
             'name',
             'start',
@@ -2133,6 +2179,18 @@ class Parser(formulas_parsers_2to3.Parser):
                     )
                 ))
 
+        law_reference = column.law_reference
+        if isinstance(law_reference, basestring):
+            law_reference_str = u'"{}"'.format(law_reference)
+        elif isinstance(law_reference, list):
+            law_reference_str = u'[{}]'.format(u', '.join(
+                u'"{}"'.format(field)
+                for field in law_reference
+                ))
+        else:
+            assert law_reference is None
+            law_reference_str = None
+
         # max_length = column.__dict__.get('max_length')  TODO?
 
         start_date = column.start
@@ -2145,9 +2203,14 @@ class Parser(formulas_parsers_2to3.Parser):
                 u'cell_format = "{}"'.format(column.val_type) if column.val_type is not None else None,
                 u'cerfa_field = {}'.format(cerfa_field_str) if cerfa_field_str is not None else None,
                 (u"label = {}".format(generate_string_julia_source(column.label))
-                    if column.label not in (u'', column.name) else None),
+                    if column.label not in (u'', column.name)
+                    else None),
+                u'law_reference = {}'.format(law_reference_str) if law_reference_str is not None else None,
                 # u'max_length = {}'.format(max_length) if max_length is not None else None,  TODO?
-                "permanent = true" if column.is_permanent else None,
+                u"permanent = true" if column.is_permanent else None,
+                (u"return_last_period_value = true"
+                    if column.is_period_size_independent and column.formula_class is None and not column.is_permanent
+                    else None),
                 u"start_date = Date({}, {}, {})".format(start_date.year, start_date.month,
                     start_date.day) if start_date is not None else None,
                 u"stop_date = Date({}, {}, {})".format(stop_date.year, stop_date.month,
@@ -2476,7 +2539,7 @@ def main():
                 if column_formula_class.operation is None:
                     role = column_formula_class.roles[0]
                     # print entity.key_singular, role
-                    expression = u"single_person_in_entity({variable}, get_entity(variable), period, {role})".format(
+                    expression = u"single_person_in_entity({variable}, get_entity(variable), {role})".format(
                         role = name_by_role_by_entity_key_singular[entity.key_singular][role],
                         variable = column_formula_class.variable_name,
                         )
@@ -2487,7 +2550,7 @@ def main():
                         name_by_role_by_entity_key_singular[entity.key_singular][role]
                         for role in roles
                         )) if roles else u''
-                    expression = u"sum_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                    expression = u"sum_person_in_entity({variable}, get_entity(variable){roles})".format(
                         roles = roles,
                         variable = column_formula_class.variable_name,
                         )
@@ -2498,7 +2561,7 @@ def main():
                         name_by_role_by_entity_key_singular[entity.key_singular][role]
                         for role in roles
                         )) if roles else u''
-                    expression = u"any_person_in_entity({variable}, get_entity(variable), period{roles})".format(
+                    expression = u"any_person_in_entity({variable}, get_entity(variable){roles})".format(
                         roles = roles,
                         variable = column_formula_class.variable_name,
                         )
@@ -2511,14 +2574,14 @@ def main():
                     name_by_role_by_entity_key_singular[entity.key_singular][role]
                     for role in roles
                     )) if roles else u''
-                expression = u"entity_to_person({variable}, period{roles})".format(
+                expression = u"entity_to_person({variable}{roles})".format(
                     roles = roles,
                     variable = column_formula_class.variable_name,
                     )
             julia_source = textwrap.dedent(u"""
                 {call} do simulation, variable, period
-                  @calculate({variable}, period)
-                  return period, {expression}
+                  @calculate({variable}, period, accept_other_period = true)
+                  return {variable}.period, {expression}
                 end
                 """).format(
                 call = parser.source_julia_column_without_function(),
