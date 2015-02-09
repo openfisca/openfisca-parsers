@@ -466,6 +466,18 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
                         value = key,
                         ).juliaize(),
                     )
+        elif subject.guess(parser.Period) is not None:
+            if self.name == u'stop':
+                return parser.Call(
+                    container = self.container,
+                    hint = parser.Date(parser = parser),
+                    parser = parser,
+                    positional_arguments = [subject],
+                    subject = parser.Variable(
+                        name = u'stop_date',
+                        parser = parser,
+                        ),
+                    )
         else:
             parent_node = subject.guess(parser.StemNode)
             if parent_node is not None:
