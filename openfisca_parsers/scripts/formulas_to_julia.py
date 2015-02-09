@@ -273,7 +273,9 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                         method_subject = call_subject.subject
                         if method_subject.guess(parser.Simulation):
                             assert len(call.positional_arguments) >= 1, call.positional_arguments
-                            assert len(call.named_arguments) == 0, call.named_arguments
+                            assert len(call.named_arguments) <= 1, call.named_arguments
+                            if len(call.named_arguments) == 1:
+                                assert u'accept_other_period' in call.named_arguments
                             requested_variable_string = call.positional_arguments[0]
                             if isinstance(requested_variable_string, parser.String):
                                 if requested_variable_string.value == variable_name:
@@ -281,6 +283,7 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                     return parser.Call(
                                         container = container,
                                         hint = call.hint,
+                                        named_arguments = call.named_arguments,
                                         parser = parser,
                                         positional_arguments = [
                                             parser.Variable(
@@ -307,6 +310,7 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                         parser.Call(
                                             container = container,
                                             hint = call.hint,
+                                            named_arguments = call.named_arguments,
                                             parser = parser,
                                             positional_arguments = [
                                                 method_subject,
