@@ -2200,6 +2200,27 @@ class Parser(formulas_parsers_2to3.Parser):
         start_date = column.start
         stop_date = column.end
 
+        if column.name == 'depcom':
+            value_at_date_to_cell = textwrap.dedent(u"""\
+            variable_definition::VariableDefinition -> pipe(
+              condition(
+                test_isa(Integer),
+                call(string),
+                test_isa(String),
+                noop,
+                fail(error = N_("Unexpected type for Insee depcom.")),
+              ),
+              condition(
+                test(value -> length(value) == 4),
+                call(value -> string('0', value)),
+              ),
+              test(value -> ismatch(r"^(\d{2}|2A|2B)\d{3}$", value),
+                error = N_("Invalid Insee depcom format for commune.")),
+            )
+            """).strip().replace(u'\n', u'\n  ')
+        else:
+            value_at_date_to_cell = None
+
         named_arguments = u''.join(
             u'  {},\n'.format(named_argument)
             for named_argument in [
@@ -2221,6 +2242,9 @@ class Parser(formulas_parsers_2to3.Parser):
                     stop_date.day) if stop_date is not None else None,
                 (u"url = {}".format(generate_string_julia_source(column.url))
                     if column.url is not None
+                    else None),
+                (u"value_at_date_to_cell = {}".format(value_at_date_to_cell)
+                    if value_at_date_to_cell is not None
                     else None),
                 u"values = {}".format(values_str) if values_str is not None else None,
                 ]
