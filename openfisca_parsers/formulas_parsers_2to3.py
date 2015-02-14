@@ -617,7 +617,8 @@ class Call(AbstractWrapper):
                             entity_class = parser.entity_class,
                             parser = parser,
                             )
-                    if method.name in ('calculate', 'divide_calculate', 'get_array', 'sum_calculate'):
+                    if method.name in ('calculate', 'calculate_add', 'calculate_add_divide', 'calculate_divide',
+                            'get_array'):
                         assert len(self.positional_arguments) >= 1
                         variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
                         if variable_name_wrapper is None:
@@ -699,7 +700,7 @@ class Call(AbstractWrapper):
         elif issubclass(parser.DatedHolder, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
-                if method.name in ('compute', 'divide_compute', 'sum_compute'):
+                if method.name in ('compute', 'compute_add', 'compute_add_divide', 'compute_divide'):
                     assert len(self.positional_arguments) >= 1
                     variable_name_wrapper = self.positional_arguments[0].guess(parser.String)
                     if variable_name_wrapper is None:

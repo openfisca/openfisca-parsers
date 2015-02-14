@@ -47,8 +47,8 @@ class Call(formulas_parsers_2to3.Call):
             positional_arguments = positional_arguments, star_argument = star_argument, subject = subject)
 
         subject = self.subject
-        if self.subject.name in ('calculate', 'compute', 'divide_calculate', 'divide_compute', 'get_array',
-                'sum_calculate', 'sum_compute'):
+        if self.subject.name in ('calculate', 'calculate_add', 'calculate_add_divide', 'calculate_divide', 'compute',
+                'compute_add', 'compute_add_divide', 'compute_divide', 'get_array'):
             # TODO: Guess input_variable instead of assuming that it is a string with a "value" attribute.
             input_variable = self.positional_arguments[0].value
             # Note: input_variable may be None when parsing salbrut, chobrut & rstbrut.

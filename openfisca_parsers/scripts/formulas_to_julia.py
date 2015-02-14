@@ -260,12 +260,13 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                 call_subject = call.subject
                 if isinstance(call_subject, parser.Attribute):
                     method_name = call_subject.name
-                    if method_name in ('calculate', 'compute', 'divide_calculate', 'divide_compute', 'sum_calculate',
-                            'sum_compute'):
+                    if method_name in ('calculate', 'calculate_add', 'calculate_add_divide', 'calculate_divide',
+                            'compute', 'compute_add', 'compute_add_divide', 'compute_divide'):
                         method_julia_name = dict(
-                            divide_compute = u'divide_calculate',
                             compute = u'calculate',
-                            sum_compute = u'sum_calculate',
+                            compute_add = u'calculate_add',
+                            compute_add_divide = u'calculate_add_divide',
+                            compute_divide = u'calculate_divide',
                             ).get(method_name, method_name)
                         variable_name = variable.name
                         # if variable_name.endswith(u'_holder'):
