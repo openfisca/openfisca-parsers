@@ -470,7 +470,7 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
             if self.name == u'stop':
                 return parser.Call(
                     container = self.container,
-                    hint = parser.Date(parser = parser),
+                    hint = parser.Instant(parser = parser),
                     parser = parser,
                     positional_arguments = [subject],
                     subject = parser.Variable(
@@ -1987,6 +1987,38 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
 
     def source_julia(self, depth = 0):
         parser = self.parser
+        if parser.column.name == 'zone_apl':
+            del parser.non_formula_function_by_name['preload_zone_apl']
+            return textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  @calculate(depcom, period)
+                  return period, [
+                    get(zone_apl_by_depcom, depcom_cell, 2)
+                    for depcom_cell in depcom
+                  ]
+                end
+
+                zone_apl_by_depcom = nothing
+
+                function preload_zone_apl()
+                  global zone_apl_by_depcom
+                  if zone_apl_by_depcom === nothing
+                    array = readcsv("assets/apl/20110914_zonage.csv", String)
+                    zone_apl_by_depcom = [
+                      # Keep only first char of Zonage column because of 1bis value considered equivalent to 1.
+                      depcom => Convertible(string(zone_apl_string[1])) |> input_to_int |> to_value
+                      for (depcom, zone_apl_string) in zip(array[2:end, 1], array[2:end, 5])
+                    ]
+                    commune_depcom_by_subcommune_depcom = JSON.parsefile(
+                      "assets/apl/commune_depcom_by_subcommune_depcom.json")
+                    for (subcommune_depcom, commune_depcom) in commune_depcom_by_subcommune_depcom
+                      zone_apl_by_depcom[subcommune_depcom] = zone_apl_by_depcom[commune_depcom]
+                    end
+                  end
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(is_formula = True),
+                )
         statements = None
         for variable in self.variable_by_name.itervalues():
             if isinstance(variable.value, parser.FormulaFunction):
@@ -2051,7 +2083,7 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
             {call} do simulation, variable, period
             {statements}end
             """).format(
-            call = parser.source_julia_column_without_function(),
+            call = parser.source_julia_column_without_function(is_formula = True),
             statements = statements or u'',
             )
 
@@ -2118,7 +2150,7 @@ class Parser(formulas_parsers_2to3.Parser):
         #     name = name[:-len(u'_holder')]
         return name
 
-    def source_julia_column_without_function(self):
+    def source_julia_column_without_function(self, is_formula = False):
         column = self.column
         tax_benefit_system = self.tax_benefit_system
 
@@ -2132,6 +2164,7 @@ class Parser(formulas_parsers_2to3.Parser):
             'entity_key_plural',
             'enum',
             'formula_class',
+            'is_input_variable',
             'is_period_size_independent',
             'is_permanent',
             'label',
@@ -2173,7 +2206,7 @@ class Parser(formulas_parsers_2to3.Parser):
         if default is None:
             default_str = None
         elif default is True:
-            default_str = "true"
+            default_str = u"true"
         elif isinstance(default, datetime.date):
             default_str = u"Date({}, {}, {})".format(default.year, default.month, default.day)
         elif isinstance(default, (float, int)):
@@ -2188,7 +2221,7 @@ class Parser(formulas_parsers_2to3.Parser):
             values_str = None
         else:
             values_str = u"[\n{}  ]".format(u''.join(
-                u'    {} => "{}",\n'.format(index, symbol)
+                u'    "{}" => {},\n'.format(symbol, index)
                 for index, symbol in sorted(
                     (index1, symbol1)
                     for symbol1, index1 in enum
@@ -2212,7 +2245,19 @@ class Parser(formulas_parsers_2to3.Parser):
         start_date = column.start
         stop_date = column.end
 
-        if column.name == 'depcom':
+        if column.name in ('age', 'agem'):
+            assert default_str is None, default_str
+            default_str = u"-9999"
+            value_at_date_to_cell = textwrap.dedent(u"""\
+            variable_definition::VariableDefinition -> pipe(
+              value_at_date_to_integer(variable_definition),
+              first_match(
+                test_greater_or_equal(0),
+                test_equal(-9999),
+              ),
+            )
+            """).strip().replace(u'\n', u'\n  ')
+        elif column.name == 'depcom':
             value_at_date_to_cell = textwrap.dedent(u"""\
             variable_definition::VariableDefinition -> pipe(
               condition(
@@ -2233,21 +2278,37 @@ class Parser(formulas_parsers_2to3.Parser):
         else:
             value_at_date_to_cell = None
 
+        is_input_variable = column.is_input_variable
+        if column.is_period_size_independent and column.formula_class is None and not column.is_permanent:
+            assert not is_formula
+            function_str = u"requested_period_last_value, "
+            is_input_variable = True
+        elif is_formula:
+            function_str = u''
+        elif column.is_permanent:
+            function_str = u'permanent_default_value, '
+            is_input_variable = True
+        elif column.formula_class is not None \
+                and column.formula_class.function.im_func is formulas.last_duration_last_value:
+            function_str = u'last_duration_last_value, '
+            assert is_input_variable
+        else:
+            function_str = u'requested_period_default_value, '
+            is_input_variable = True
+
         named_arguments = u''.join(
             u'  {},\n'.format(named_argument)
             for named_argument in [
                 u'cell_default = {}'.format(default_str) if default_str is not None else None,
                 u'cell_format = "{}"'.format(column.val_type) if column.val_type is not None else None,
                 u'cerfa_field = {}'.format(cerfa_field_str) if cerfa_field_str is not None else None,
+                u"input_variable = true" if is_input_variable else None,
                 (u"label = {}".format(generate_string_julia_source(column.label))
                     if column.label not in (u'', column.name)
                     else None),
                 u'law_reference = {}'.format(law_reference_str) if law_reference_str is not None else None,
                 # u'max_length = {}'.format(max_length) if max_length is not None else None,  TODO?
                 u"permanent = true" if column.is_permanent else None,
-                (u"return_last_period_value = true"
-                    if column.is_period_size_independent and column.formula_class is None and not column.is_permanent
-                    else None),
                 u"start_date = Date({}, {}, {})".format(start_date.year, start_date.month,
                     start_date.day) if start_date is not None else None,
                 u"stop_date = Date({}, {}, {})".format(stop_date.year, stop_date.month,
@@ -2264,9 +2325,11 @@ class Parser(formulas_parsers_2to3.Parser):
             )
         if named_arguments:
             named_arguments = u',\n{}'.format(named_arguments)
-        return u"""@define_variable({name}, {entity}_definition, {cell_type}{named_arguments})""".format(
+
+        return u"""@define_variable({function}{name}, {entity}_definition, {cell_type}{named_arguments})""".format(
             cell_type = cell_type,
             entity = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural].key_singular,
+            function = function_str,
             name = column.name,
             named_arguments = named_arguments,
             )
@@ -2568,7 +2631,7 @@ def main():
         parser.column = column
 
         column_formula_class = column.formula_class
-        if column_formula_class is None:
+        if column_formula_class is None or column.is_input_variable:
             # Input variable
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
             continue
@@ -2624,7 +2687,7 @@ def main():
                   return {variable}.period, {expression}
                 end
                 """).format(
-                call = parser.source_julia_column_without_function(),
+                call = parser.source_julia_column_without_function(is_formula = True),
                 expression = expression,
                 variable = column_formula_class.variable_name,
                 )
@@ -2638,7 +2701,6 @@ def main():
                 'coefficient_proratisation',
                 'nombre_heures_remunerees',
                 'nombre_jours_calendaires',
-                'zone_apl',
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
