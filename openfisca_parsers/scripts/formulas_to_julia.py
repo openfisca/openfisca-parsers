@@ -467,6 +467,18 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
                         value = key,
                         ).juliaize(),
                     )
+        elif subject.guess(parser.Instant) is not None:
+            if self.name in (u'day', u'month', u'year'):
+                return parser.Call(
+                    container = self.container,
+                    hint = parser.Instant(parser = parser),
+                    parser = parser,
+                    positional_arguments = [subject],
+                    subject = parser.Variable(
+                        name = self.name,
+                        parser = parser,
+                        ),
+                    )
         elif subject.guess(parser.Period) is not None:
             if self.name == u'stop':
                 return parser.Call(
