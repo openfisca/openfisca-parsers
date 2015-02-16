@@ -61,7 +61,7 @@ class Parser(formulas_parsers_2to3.Parser):
 
     def get_input_variables(self, column):
         formula_class = column.formula_class
-        if formula_class is None:
+        if formula_class is None or column.is_input_variable:
             # Input variable
             return None
         if issubclass(formula_class, formulas.AbstractEntityToEntity):
