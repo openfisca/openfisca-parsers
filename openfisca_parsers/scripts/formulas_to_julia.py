@@ -2698,7 +2698,7 @@ def main():
             julia_source = textwrap.dedent(u"""
                 {call} do simulation, variable, period
                   @calculate({variable}, period, accept_other_period = true)
-                  return {variable}.period, {expression}
+                  return period, {expression}
                 end
                 """).format(
                 call = parser.source_julia_column_without_function(is_formula = True),
