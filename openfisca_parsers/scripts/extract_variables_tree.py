@@ -127,7 +127,7 @@ def create_variables_tree(country_package, input_variables = False, computed_var
                     module_variables_name.sort()
                     variables_node['variables'] = module_variables_name
 
-        return variables_tree
+    return variables_tree
 
 
 def print_variables_node(variables_node, indent = 0):
