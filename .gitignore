@@ -1,3 +1,4 @@
+.spyderproject
 build/
 dist/
 *.egg-info

@@ -55,11 +55,21 @@ def main():
     logging.basicConfig(level = logging.DEBUG if args.verbose else logging.WARNING, stream = sys.stdout)
 
     country_package = importlib.import_module(args.country_package)
-    root_dir = os.path.dirname(country_package.__file__)
 
+    variables_tree = create_variables_tree(country_package, input_variables = args.input,
+        computed_variables = args.computed)
+
+    print_variables_node(variables_tree)
+
+    return 0
+
+
+def create_variables_tree(country_package, input_variables = False, computed_variables = False):
+
+    root_dir = os.path.dirname(country_package.__file__)
     variables_tree = {}
 
-    if args.input:
+    if input_variables:
         for (dir, directories_name, filenames) in os.walk(root_dir):
             for filename in filenames:
                 if filename.endswith('.py'):
@@ -89,7 +99,7 @@ def main():
                         module_variables_name.sort()
                         variables_node['variables'] = module_variables_name
 
-    if args.computed:
+    if computed_variables:
         TaxBenefitSystem = country_package.init_country()
         tax_benefit_system = TaxBenefitSystem()
 
@@ -117,9 +127,7 @@ def main():
                     module_variables_name.sort()
                     variables_node['variables'] = module_variables_name
 
-    print_variables_node(variables_tree)
-
-    return 0
+    return variables_tree
 
 
 def print_variables_node(variables_node, indent = 0):
