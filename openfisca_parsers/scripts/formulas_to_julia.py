@@ -2262,9 +2262,9 @@ class Parser(formulas_parsers_2to3.Parser):
         if column.name in ('age', 'agem'):
             assert default_str is None, default_str
             default_str = u"-9999"
-            value_at_date_to_cell = textwrap.dedent(u"""\
+            value_at_period_to_cell = textwrap.dedent(u"""\
             variable_definition::VariableDefinition -> pipe(
-              value_at_date_to_integer(variable_definition),
+              value_at_period_to_integer(variable_definition),
               first_match(
                 test_greater_or_equal(0),
                 test_equal(-9999),
@@ -2272,7 +2272,7 @@ class Parser(formulas_parsers_2to3.Parser):
             )
             """).strip().replace(u'\n', u'\n  ')
         elif column.name == 'depcom':
-            value_at_date_to_cell = textwrap.dedent(u"""\
+            value_at_period_to_cell = textwrap.dedent(u"""\
             variable_definition::VariableDefinition -> pipe(
               condition(
                 test_isa(Integer),
@@ -2290,7 +2290,7 @@ class Parser(formulas_parsers_2to3.Parser):
             )
             """).strip().replace(u'\n', u'\n  ')
         else:
-            value_at_date_to_cell = None
+            value_at_period_to_cell = None
 
         is_input_variable = column.is_input_variable
         if column.is_period_size_independent and column.formula_class is None and not column.is_permanent:
@@ -2330,8 +2330,8 @@ class Parser(formulas_parsers_2to3.Parser):
                 (u"url = {}".format(generate_string_julia_source(column.url))
                     if column.url is not None
                     else None),
-                (u"value_at_date_to_cell = {}".format(value_at_date_to_cell)
-                    if value_at_date_to_cell is not None
+                (u"value_at_period_to_cell = {}".format(value_at_period_to_cell)
+                    if value_at_period_to_cell is not None
                     else None),
                 u"values = {}".format(values_str) if values_str is not None else None,
                 ]
