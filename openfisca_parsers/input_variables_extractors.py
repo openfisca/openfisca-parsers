@@ -50,11 +50,26 @@ class Call(formulas_parsers_2to3.Call):
         if self.subject.name in ('calculate', 'calculate_add', 'calculate_add_divide', 'calculate_divide', 'compute',
                 'compute_add', 'compute_add_divide', 'compute_divide', 'get_array'):
             # TODO: Guess input_variable instead of assuming that it is a string with a "value" attribute.
-            input_variable = self.positional_arguments[0].value
-            # Note: input_variable may be None when parsing salbrut, chobrut & rstbrut.
-            if input_variable is not None:
-                assert isinstance(input_variable, basestring), input_variable
-                parser.input_variables.add(input_variable)
+            input_variable = self.positional_arguments[0]
+            while isinstance(input_variable, parser.Variable):
+                input_variable = input_variable.value
+            if input_variable is None:
+                # print "Missing input variable name while calling {} in {}".format(self.subject.name,
+                #     parser.column.name)
+                return
+            elif isinstance(input_variable, parser.Attribute) and input_variable.name == '__name__':
+                # Assume this is "self.__class__.__name__".
+                input_variable_name = parser.column.name
+                assert input_variable_name is not None
+                parser.input_variables.add(input_variable_name)
+                return
+            elif isinstance(input_variable, parser.String):
+                input_variable_name = input_variable.value
+                # Note: input_variable_name may be None when parsing salbrut, chobrut & rstbrut.
+                if input_variable_name is not None:
+                    parser.input_variables.add(input_variable_name)
+                    return
+            assert False, "Unexpected class for input variable: {}".format(input_variable)
 
 
 class Parser(formulas_parsers_2to3.Parser):
@@ -62,11 +77,12 @@ class Parser(formulas_parsers_2to3.Parser):
 
     def get_input_variables(self, column):
         formula_class = column.formula_class
-        if formula_class is None or column.is_input_variable:
-            # Input variable
-            return None
+        assert formula_class is not None, "Column {} has no formula".format(column.name)
         if issubclass(formula_class, formulas.AbstractEntityToEntity):
             return set([formula_class.variable_name])
+        if issubclass(formula_class, formulas.SimpleFormula) and formula_class.function is None:
+            # Input variable
+            return None
         self.column = column
         self.input_variables = input_variables = set()
         self.FormulaClassFileInput.parse(formula_class, parser = self)
