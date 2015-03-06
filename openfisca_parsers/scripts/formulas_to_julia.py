@@ -277,9 +277,9 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                             assert len(call.named_arguments) <= 1, call.named_arguments
                             if len(call.named_arguments) == 1:
                                 assert u'accept_other_period' in call.named_arguments
-                            requested_variable_string = call.positional_arguments[0]
-                            if isinstance(requested_variable_string, parser.String):
-                                if requested_variable_string.value == variable_name:
+                            requested_variable = call.positional_arguments[0]
+                            if isinstance(requested_variable, parser.String):
+                                if requested_variable.value == variable_name:
                                     # @calculate(x, ...)
                                     return parser.Call(
                                         container = container,
@@ -290,7 +290,7 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                             parser.Variable(
                                                 container = container,
                                                 # hint = parser.ArrayHandle(parser = parser),  TODO
-                                                name = requested_variable_string.value,
+                                                name = requested_variable.value,
                                                 parser = parser,
                                                 ),
                                             ] + call.positional_arguments[1:],
@@ -299,43 +299,39 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                             parser = parser,
                                             ),
                                         )
-                                # y = calculate("x", ...)
-                                return parser.Assignment(
-                                    container = container,
-                                    left = [
-                                        parser.Variable(container = container, name = variable_name, parser = parser),
-                                        ],
-                                    operator = u'=',
-                                    parser = parser,
-                                    right = [
-                                        parser.Call(
-                                            container = container,
-                                            hint = call.hint,
-                                            named_arguments = call.named_arguments,
+                            # y = calculate("x", ...)
+                            return parser.Assignment(
+                                container = container,
+                                left = [
+                                    parser.Variable(container = container, name = variable_name, parser = parser),
+                                    ],
+                                operator = u'=',
+                                parser = parser,
+                                right = [
+                                    parser.Call(
+                                        container = container,
+                                        hint = call.hint,
+                                        named_arguments = call.named_arguments,
+                                        parser = parser,
+                                        positional_arguments = [
+                                            method_subject,
+                                            requested_variable,
+                                            ] + call.positional_arguments[1:],
+                                        subject = parser.Variable(  # TODO: Use function call.
+                                            name = method_julia_name,
                                             parser = parser,
-                                            positional_arguments = [
-                                                method_subject,
-                                                parser.String(
-                                                    container = container,
-                                                    parser = parser,
-                                                    value = requested_variable_string.value,
-                                                    ),
-                                                ] + call.positional_arguments[1:],
-                                            subject = parser.Variable(  # TODO: Use function call.
-                                                name = method_julia_name,
-                                                parser = parser,
-                                                ),
                                             ),
-                                        ],
-                                    )
+                                        ),
+                                    ],
+                                )
                     elif method_name == 'get_array':
                         method_subject = call_subject.subject
                         if method_subject.guess(parser.Simulation):
                             assert len(call.positional_arguments) >= 1, call.positional_arguments
                             assert len(call.named_arguments) == 0, call.named_arguments
-                            requested_variable_string = call.positional_arguments[0]
-                            if isinstance(requested_variable_string, parser.String):
-                                if requested_variable_string.value == variable.name:
+                            requested_variable = call.positional_arguments[0]
+                            if isinstance(requested_variable, parser.String):
+                                if requested_variable.value == variable.name:
                                     # @variable_at(x, ...)
                                     return parser.Call(
                                         container = container,
@@ -345,7 +341,7 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                             parser.Variable(
                                                 container = container,
                                                 # hint = parser.ArrayHandle(parser = parser),  TODO
-                                                name = requested_variable_string.value,
+                                                name = requested_variable.value,
                                                 parser = parser,
                                                 ),
                                             ] + call.positional_arguments[1:] + [
@@ -360,40 +356,36 @@ class Assignment(JuliaCompilerMixin, formulas_parsers_2to3.Assignment):
                                             parser = parser,
                                             ),
                                         )
-                                # y = at("x", ...)
-                                return parser.Assignment(
-                                    container = container,
-                                    left = [
-                                        parser.Variable(container = container, name = variable.name, parser = parser),
-                                        ],
-                                    operator = u'=',
-                                    parser = parser,
-                                    right = [
-                                        parser.Call(
-                                            container = container,
-                                            hint = call.hint,
-                                            parser = parser,
-                                            positional_arguments = [
-                                                method_subject,
-                                                parser.String(
-                                                    container = container,
-                                                    parser = parser,
-                                                    value = requested_variable_string.value,
-                                                    ),
-                                                ] + call.positional_arguments[1:] + [
-                                                # Add nothing as default value.
-                                                parser.NoneWrapper(
-                                                    container = container,
-                                                    parser = parser,
-                                                    ),
-                                                ],
-                                            subject = parser.Variable(  # TODO: Use function call.
-                                                name = u'variable_at',
+                            # y = variable_at("x", ...)
+                            return parser.Assignment(
+                                container = container,
+                                left = [
+                                    parser.Variable(container = container, name = variable.name, parser = parser),
+                                    ],
+                                operator = u'=',
+                                parser = parser,
+                                right = [
+                                    parser.Call(
+                                        container = container,
+                                        hint = call.hint,
+                                        parser = parser,
+                                        positional_arguments = [
+                                            method_subject,
+                                            requested_variable,
+                                            ] + call.positional_arguments[1:] + [
+                                            # Add nothing as default value.
+                                            parser.NoneWrapper(
+                                                container = container,
                                                 parser = parser,
                                                 ),
+                                            ],
+                                        subject = parser.Variable(  # TODO: Use function call.
+                                            name = u'variable_at',
+                                            parser = parser,
                                             ),
-                                        ],
-                                    )
+                                        ),
+                                    ],
+                                )
         return self.__class__(
             container = container,
             hint = self.hint,
@@ -471,7 +463,7 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
             if self.name in (u'day', u'month', u'year'):
                 return parser.Call(
                     container = self.container,
-                    hint = parser.Instant(parser = parser),
+                    hint = parser.Number(parser = parser),
                     parser = parser,
                     positional_arguments = [subject],
                     subject = parser.Variable(
@@ -492,6 +484,51 @@ class Attribute(JuliaCompilerMixin, formulas_parsers_2to3.Attribute):
                         ),
                     )
         else:
+            formula = subject.guess(parser.Formula)
+            if formula is not None:
+                if self.name == u'__class__':
+                    return parser.Variable(
+                        name = u'variable.definition',
+                        parser = parser,
+                        value = self
+                        )
+                elif self.name == u'holder':
+                    return parser.Variable(
+                        # hint = parser.Holder(
+                        #     column = formula.column,
+                        #     parser = parser,
+                        #     ),
+                        name = u'variable',
+                        parser = parser,
+                        value = self
+                        )
+            formula_class = subject.guess(parser.FormulaClass)
+            if formula_class is not None:
+                if self.name == u'__name__':
+                    return self.__class__(
+                        container = self.container,
+                        hint = self.hint,
+                        name = u'name',
+                        parser = parser,
+                        subject = subject,
+                        )
+            holder = subject.guess(parser.Holder)
+            if holder is not None:
+                if self.name == u'entity':
+                    return parser.Call(
+                        container = self.container,
+                        hint = parser.Entity(
+                            entity_class = parser.tax_benefit_system.entity_class_by_key_plural[
+                                holder.column.entity_key_plural],
+                            parser = parser,
+                            ),
+                        parser = parser,
+                        positional_arguments = [subject],
+                        subject = parser.Variable(
+                            name = u'get_entity',
+                            parser = parser,
+                            ),
+                        )
             parent_node = subject.guess(parser.StemNode)
             if parent_node is not None:
                 hint = parser.StemNode(
@@ -592,7 +629,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                         parser = parser,
                         )
                 elif function.name == u'zeros':
-                    assert len(self.positional_arguments) == 1, self.positional_arguments
+                    assert len(self.positional_arguments) <= 2, self.positional_arguments
                     assert len(self.named_arguments) <= 1, self.named_arguments
                     dtype_wrapper = self.named_arguments.get('dtype')
                     if dtype_wrapper is None:
@@ -983,7 +1020,45 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                 if method_subject.guess(parser.Instant):
                     assert len(positional_arguments) == 2, positional_arguments
                     delta, unit = positional_arguments
-                    if isinstance(delta, parser.String) and delta.value == 'first-of':
+                    if isinstance(delta, (parser.Factor, parser.Number)) and isinstance(unit, parser.String) \
+                            and unit.value is not None:
+                        if isinstance(delta, parser.Factor):
+                            assert delta.operator == u'-'
+                            delta = -int(delta.operand.value)
+                        else:
+                            delta = int(delta.value)
+                        return parser.ParentheticalExpression(
+                            container = container,
+                            parser = parser,
+                            value = parser.ArithmeticExpression(
+                                container = container,
+                                hint = parser.Instant(parser = parser),
+                                items = [
+                                    method_subject,
+                                    u'+' if delta >= 0 else u'-',
+                                    parser.Call(
+                                        container = container,
+                                        parser = parser,
+                                        positional_arguments = [
+                                            parser.Number(
+                                                parser = parser,
+                                                value = abs(delta),
+                                                ),
+                                            ],
+                                        subject = parser.Variable(
+                                            name = dict(
+                                                day = u'Day',
+                                                month = u'Month',
+                                                year = u'Year',
+                                                )[unit.value],
+                                            parser = parser,
+                                            ),
+                                        ),
+                                    ],
+                                parser = parser,
+                                ),
+                            )
+                    elif isinstance(delta, parser.String) and delta.value == 'first-of':
                         if isinstance(unit, parser.String) and unit.value == 'month':
                             return parser.Call(
                                 container = container,
@@ -1119,7 +1194,12 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                 method_subject = subject.subject
                 if isinstance(method_subject, parser.Variable) and method_subject.name == 'self':
                     assert len(positional_arguments) == 1, positional_arguments
-                    assert len(named_arguments) == 0, named_arguments
+                    assert len(named_arguments) <= 1, named_arguments
+                    if len(named_arguments) == 1:
+                        roles = named_arguments.get('roles')
+                        assert roles is not None, named_arguments
+                    else:
+                        roles = None
                     requested_variable = positional_arguments[0]
                     # sum_person_in_entity(x, get_entity(variable), period)
                     return parser.Call(
@@ -1138,7 +1218,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                                 name = u'period',
                                 parser = parser,
                                 ),
-                            ],
+                            ] + ([roles] if roles is not None else []),
                         subject = parser.Variable(  # TODO: Use function call.
                             name = u'sum_person_in_entity',
                             parser = parser,
@@ -1320,7 +1400,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                     )
             elif function_name == u'zeros':
                 assert len(positional_arguments) == 1, positional_arguments
-                length = positional_arguments[0]
+                length = positional_arguments[0].juliaize()
                 assert len(named_arguments) <= 1, named_arguments
                 dtype_wrapper = named_arguments.get('dtype')
                 if dtype_wrapper is None:
@@ -1496,6 +1576,12 @@ class For(JuliaCompilerMixin, formulas_parsers_2to3.For):
             iterator = self.iterator.source_julia(depth = depth + 1),
             variables = u'({})'.format(u', '.join(variables_name)) if len(variables_name) > 1 else variables_name[0],
             )
+
+
+class Formula(JuliaCompilerMixin, formulas_parsers_2to3.Formula):
+    def juliaize(self):
+        # A formula is never used as is. Only its attributes are used, so it is not converted to Julia.
+        return self
 
 
 class Function(JuliaCompilerMixin, formulas_parsers_2to3.Function):
@@ -2000,6 +2086,53 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
 
     def source_julia(self, depth = 0):
         parser = self.parser
+        if parser.column.name == 'cmu_c_plafond':
+            return textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  period = MonthPeriod(firstdayofmonth(period.start))
+                  @calculate(age, period)
+                  @calculate(alt, period)
+                  @calculate(cmu_eligible_majoration_dom, period)
+                  # @calculate(cmu_nbp_foyer, period)
+                  P = legislation_at(simulation, period.start)["cmu"]
+
+                  PAC = vcat([PART], ENFS)
+
+                  # Calcul du coefficient personnes à charge, avec prise en compte de la garde alternée
+
+                  # Tableau des coefficients
+                  coefficients_array = vcat(
+                    [P["coeff_p2"], P["coeff_p3_p4"], P["coeff_p3_p4"], P["coeff_p5_plus"]],
+                    zeros(length(PAC) - 4),
+                  )
+
+                  # Tri des personnes à charge, le conjoint en premier, les enfants par âge décroissant
+                  age_by_role = split_person_by_role(age, get_entity(variable), period, PAC)
+                  alt_by_role = split_person_by_role(alt, get_entity(variable), period, PAC)
+
+                  age_and_alt_matrix = hcat([
+                    (role == PART) * 10000 .+ age_by_role[role] .* 10 .+ alt_by_role[role] .-
+                      (age_by_role[role] .< 0) .* 999999
+                    for role in sort(collect(keys(age_by_role)))
+                  ]...)
+                  for row_index in 1:size(age_and_alt_matrix, 1)
+                    age_and_alt_matrix[row_index, :] = sort(age_and_alt_matrix[row_index, :], 2, rev = true)
+                  end
+
+                  # Calcule weighted_alt_matrix, qui vaut 0.5 pour les enfants en garde alternée, 1 sinon.
+                  present_matrix = age_and_alt_matrix .>= 0
+                  alt_matrix = (age_and_alt_matrix .% 10) .* present_matrix
+                  weighted_alt_matrix = present_matrix .- alt_matrix .* 0.5
+
+                  # Calcul final du coefficient
+                  coeff_pac = weighted_alt_matrix * coefficients_array
+
+                  return period, P["plafond_base"] .* (1 .+ cmu_eligible_majoration_dom .* P["majoration_dom"]) .*
+                    (1 .+ coeff_pac)
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(is_formula = True),
+                )
         if parser.column.name == 'zone_apl':
             del parser.non_formula_function_by_name['preload_zone_apl']
             return textwrap.dedent(u"""
@@ -2125,6 +2258,7 @@ class Parser(formulas_parsers_2to3.Parser):
     Expression = Expression
     Factor = Factor
     For = For
+    Formula = Formula
     FormulaClass = FormulaClass
     FormulaFunction = FormulaFunction
     Function = Function
@@ -2178,7 +2312,6 @@ class Parser(formulas_parsers_2to3.Parser):
             'entity_key_plural',
             'enum',
             'formula_class',
-            'is_input_variable',
             'is_period_size_independent',
             'is_permanent',
             'label',
@@ -2292,23 +2425,20 @@ class Parser(formulas_parsers_2to3.Parser):
         else:
             value_at_period_to_cell = None
 
-        is_input_variable = column.is_input_variable
-        if column.is_period_size_independent and column.formula_class is None and not column.is_permanent:
-            assert not is_formula
-            function_str = u"requested_period_last_value, "
-            is_input_variable = True
-        elif is_formula:
-            function_str = u''
-        elif column.is_permanent:
-            function_str = u'permanent_default_value, '
-            is_input_variable = True
-        elif column.formula_class is not None \
-                and column.formula_class.function.im_func is formulas.last_duration_last_value:
-            function_str = u'last_duration_last_value, '
-            assert is_input_variable
+        formula_class = column.formula_class
+        if issubclass(formula_class, formulas.AbstractEntityToEntity):
+            base_function_str = u'entity_to_entity_period_value'
+        elif formula_class.base_function.func_name in (
+                formulas.last_duration_last_value.func_name,
+                formulas.missing_value.func_name,
+                formulas.permanent_default_value.func_name,
+                formulas.requested_period_default_value.func_name,
+                formulas.requested_period_last_value.func_name,
+                ):
+            base_function_str = formula_class.base_function.func_name
         else:
-            function_str = u'requested_period_default_value, '
-            is_input_variable = True
+            assert False, u"Unhandled base function in formula {}: {}".format(column.name,
+                getattr(formula_class, 'base_function', None)).encode('utf-8')
 
         named_arguments = u''.join(
             u'  {},\n'.format(named_argument)
@@ -2316,7 +2446,6 @@ class Parser(formulas_parsers_2to3.Parser):
                 u'cell_default = {}'.format(default_str) if default_str is not None else None,
                 u'cell_format = "{}"'.format(column.val_type) if column.val_type is not None else None,
                 u'cerfa_field = {}'.format(cerfa_field_str) if cerfa_field_str is not None else None,
-                u"input_variable = true" if is_input_variable else None,
                 (u"label = {}".format(generate_string_julia_source(column.label))
                     if column.label not in (u'', column.name)
                     else None),
@@ -2340,13 +2469,15 @@ class Parser(formulas_parsers_2to3.Parser):
         if named_arguments:
             named_arguments = u',\n{}'.format(named_arguments)
 
-        return u"""@define_variable({function}{name}, {entity}_definition, {cell_type}{named_arguments})""".format(
-            cell_type = cell_type,
-            entity = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural].key_singular,
-            function = function_str,
-            name = column.name,
-            named_arguments = named_arguments,
-            )
+        return u"@define_{define_type}({name}, {entity}_definition, {cell_type}, {base_formula}{named_arguments})" \
+            .format(
+                base_formula = base_function_str,
+                cell_type = cell_type,
+                define_type = u'formula' if is_formula else u'variable',
+                entity = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural].key_singular,
+                name = column.name,
+                named_arguments = named_arguments,
+                )
 
 
 def generate_date_range_value_julia_source(date_range_value_json):
@@ -2645,7 +2776,8 @@ def main():
         parser.column = column
 
         column_formula_class = column.formula_class
-        if column_formula_class is None or column.is_input_variable:
+        assert column_formula_class is not None
+        if issubclass(column_formula_class, formulas.SimpleFormula) and column_formula_class.function is None:
             # Input variable
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
             continue

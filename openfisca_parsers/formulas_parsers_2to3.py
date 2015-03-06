@@ -379,8 +379,9 @@ class Assignment(AbstractWrapper):
         assert len(children) == 3, "Unexpected length {} of children in assignment:\n{}\n\n{}".format(
             len(children), repr(node), unicode(node).encode('utf-8'))
         left, operator, right = children
-        assert operator.type in (tokens.EQUAL, tokens.MINEQUAL, tokens.PLUSEQUAL, tokens.STAREQUAL), \
-            "Unexpected assignment operator:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
+        assert operator.type in (tokens.AMPEREQUAL, tokens.EQUAL, tokens.MINEQUAL, tokens.PLUSEQUAL,
+            tokens.STAREQUAL), "Unexpected assignment operator:\n{}\n\n{}".format(repr(node), unicode(node).encode(
+                'utf-8'))
 
         # Right items must be parsed before left ones, to avoid reuse of left variables (for example in statements like:
         # period = period).
@@ -421,7 +422,8 @@ class Assignment(AbstractWrapper):
         else:
             assert left.type == tokens.NAME, \
                 "Unexpected assignment left operand:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
-            variable = parser.Variable.parse(left, container = container, parser = parser)
+            variable = parser.Variable.parse(left, container = container, parser = parser,
+                value = None if operator.type == tokens.EQUAL else container.get_variable(left.value, parser = parser))
             left_items.append(variable)
             container.variable_by_name[variable.name] = variable
 
@@ -466,18 +468,43 @@ class Attribute(AbstractWrapper):
                 period = self.subject.guess(parser.Period)
                 if period is not None:
                     return parser.Date(parser = parser)
+        elif issubclass(parser.Entity, expected):
+            if self.name == 'entity':
+                holder = self.subject.guess(parser.Holder)
+                if holder is not None:
+                    entity_class = parser.tax_benefit_system.entity_class_by_key_plural[holder.column.entity_key_plural]
+                    return parser.Entity(entity_class = entity_class, parser = parser)
+        elif issubclass(parser.FormulaClass, expected):
+            if self.name == '__class__':
+                formula = self.subject.guess(parser.Formula)
+                if formula is not None:
+                    return formula.formula_class
+        elif issubclass(parser.Holder, expected):
+            if self.name == 'holder':
+                formula = self.subject.guess(parser.Formula)
+                if formula is not None:
+                    return parser.Holder(column = formula.column, parser = parser)
         elif issubclass(parser.Instant, expected):
             if self.name == 'start':
                     period = self.subject.guess(parser.Period)
                     if period is not None:
                         return parser.Instant(parser = parser)
         elif issubclass(parser.Number, expected):
+            if self.name == 'count':
+                entity = self.subject.guest(parser.Entity)
+                if entity is not None:
+                    return parser.Number(parser = parser)
             compact_node_wrapper = self.subject.guess(parser.CompactNode)
             if compact_node_wrapper is not None:
                 child_json = compact_node_wrapper.value['children'][self.name]
                 child_type = child_json['@type']
                 if child_type == u'Parameter' and child_json.get('format') != 'boolean':
                     return parser.Number(parser = parser)
+        elif issubclass(parser.String, expected):
+            if self.name == '__name__':
+                formula_class = self.subject.guess(parser.FormulaClass)
+                if formula_class is not None:
+                    return parser.String(parser = parser, value = parser.column.name)
         elif issubclass(parser.TaxScale, expected):
             compact_node_wrapper = self.subject.guess(parser.CompactNode)
             if compact_node_wrapper is not None:
@@ -734,7 +761,10 @@ class Call(AbstractWrapper):
                     if method.subject.guess(parser.Instant):
                         # instant.period(...)
                         assert len(self.positional_arguments) >= 1
-                        return parser.Period(parser = parser, unit = self.positional_arguments[0])
+                        unit = self.positional_arguments[0].guess(parser.String)
+                        if unit is not None:
+                            assert unit.value is not None, 'Missing value in unit string'
+                            return parser.Period(parser = parser, unit = unit.value)
         elif issubclass(parser.TaxScale, expected):
             method = self.subject.guess(parser.Attribute)
             if method is not None:
@@ -1233,8 +1263,13 @@ class Enum(AbstractWrapper):
         return None
 
 
-# class Entity(AbstractWrapper):
-#     pass
+class Entity(AbstractWrapper):
+    entity_class = None
+
+    def __init__(self, container = None, entity_class = None, hint = None, node = None, parser = None):
+        super(Entity, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert entity_class is not None
+        self.entity_class = entity_class
 
 
 class Expression(AbstractWrapper):
@@ -1497,8 +1532,9 @@ class Function(AbstractWrapper):
         assert len(children) == 5
 
         self.body_parsed = True
-        body = parser.parse_suite(children[4], container = self)
-        self.body[:] = body
+        if parser.column.name != 'cmu_c_plafond':
+            body = parser.parse_suite(children[4], container = self)
+            self.body[:] = body
 
     def parse_call(self, call):
         if not self.body_parsed:
@@ -1684,13 +1720,13 @@ class FunctionFileInput(AbstractWrapper):
             raise
 
 
-# class Holder(AbstractWrapper):
-#     formula = None
+class Holder(AbstractWrapper):
+    column = None
 
-#     def __init__(self, node, formula = None, parser = None):
-#         super(Holder, self).__init__(node, parser = parser)
-#         if formula is not None:
-#             self.formula = formula
+    def __init__(self, column = None, container = None, hint = None, node = None, parser = None):
+        super(Holder, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert column is not None
+        self.column = column
 
 
 class If(AbstractWrapper):
@@ -2477,7 +2513,15 @@ class Boolean(Number):
 
 
 class Formula(AbstractWrapper):
-    pass
+    column = None
+    formula_class = None
+
+    def __init__(self, container = None, formula_class = None, hint = None, node = None, parser = None):
+        super(Formula, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        self.column = parser.column
+        assert self.column is not None
+        assert isinstance(formula_class, parser.FormulaClass)
+        self.formula_class = formula_class
 
 
 class FormulaClass(Class):
@@ -2517,6 +2561,10 @@ class FormulaFunction(Function):
         parser = self.parser
         assert self.positional_parameters == ['self', 'simulation', 'period'], self.positional_arguments
         assert not self.named_parameters, self.named_arguments
+        formula_variable = self.variable_by_name['self']
+        assert formula_variable.value is None, formula_variable.value
+        formula_variable.value = parser.Formula(container = self.container.container, formula_class = self.container,
+            parser = self.parser)
         simulation_variable = self.variable_by_name['simulation']
         assert simulation_variable.value is None, simulation_variable.value
         simulation_variable.value = parser.Simulation(parser = self.parser)
@@ -2559,7 +2607,7 @@ class Parser(conv.State):
     Decorator = Decorator
     Dictionary = Dictionary
     driver = None
-    # Entity = Entity
+    Entity = Entity
     # EntityToEntity = EntityToEntity
     Enum = Enum
     Expression = Expression
@@ -2573,7 +2621,7 @@ class Parser(conv.State):
     Function = Function
     # FunctionCall = FunctionCall
     FunctionFileInput = FunctionFileInput
-    # Holder = Holder
+    Holder = Holder
     If = If
     Instant = Instant
     Key = Key
@@ -2767,7 +2815,10 @@ class Parser(conv.State):
             if left_parenthesis.type == tokens.LPAR:
                 value = self.parse_value(value, container = container)
                 return self.ParentheticalExpression(container = container, node = node, parser = self, value = value)
-            return self.List.parse(value, container = container, parser = self)
+            if value.type == symbols.listmaker:
+                return self.List.parse(value, container = container, parser = self)
+            singleton = self.parse_value(value, container = container)
+            return self.List(container = container, node = value, parser = self, value = [singleton])
 
         if node.type == symbols.comparison:
             return self.Comparison.parse(node, container = container, parser = self)
