@@ -2133,6 +2133,21 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
                 """).format(
                 call = parser.source_julia_column_without_function(is_formula = True),
                 )
+        if parser.column.name == 'nombre_jours_calendaires':
+            return textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  period = MonthPeriod(firstdayofmonth(period.start))
+                  @calculate(contrat_de_travail_arrivee, period)
+                  @calculate(contrat_de_travail_depart, period)
+                  debut_mois = firstdayofmonth(period.start)
+                  fin_mois = lastdayofmonth(period.start) + Day(1)
+                  jours_travailles = int(min(contrat_de_travail_depart, fin_mois)) - int(max(contrat_de_travail_arrivee,
+                    debut_mois))
+                  return period, jours_travailles
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(is_formula = True),
+                )
         if parser.column.name == 'zone_apl':
             del parser.non_formula_function_by_name['preload_zone_apl']
             return textwrap.dedent(u"""
@@ -2846,7 +2861,7 @@ def main():
         if column.name in (
                 'coefficient_proratisation',
                 'nombre_heures_remunerees',
-                'nombre_jours_calendaires',
+                # 'nombre_jours_calendaires',
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
