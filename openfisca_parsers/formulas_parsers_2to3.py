@@ -799,32 +799,44 @@ class Call(AbstractWrapper):
                             ),
                         )
         elif issubclass(parser.UniformIterator, expected):
-            method = self.subject.guess(parser.Attribute)
-            if method is not None:
-                if method.name == 'iterkeys':
-                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+            function = self.subject.guess(parser.Variable)
+            if function is not None:
+                if function.name == 'sorted':
+                    assert len(self.positional_arguments) >= 1
+                    argument = self.positional_arguments[0]
+                    uniform_iterator = argument.guess(expected)
+                    if uniform_iterator is not None:
+                        return uniform_iterator
+                    uniform_dictionary = argument.guess(parser.UniformDictionary)
                     if uniform_dictionary is not None:
-                        return parser.UniformIterator(
-                            items = [uniform_dictionary.key],
-                            parser = parser,
-                            )
-                elif method.name == 'iteritems':
-                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
-                    if uniform_dictionary is not None:
-                        return parser.UniformIterator(
-                            items = [
-                                uniform_dictionary.key,
-                                uniform_dictionary.value,
-                                ],
-                            parser = parser,
-                            )
-                elif method.name == 'itervalues':
-                    uniform_dictionary = method.subject.guess(parser.UniformDictionary)
-                    if uniform_dictionary is not None:
-                        return parser.UniformIterator(
-                            items = [uniform_dictionary.value],
-                            parser = parser,
-                            )
+                        return uniform_dictionary.guess(expected)
+            else:
+                method = self.subject.guess(parser.Attribute)
+                if method is not None:
+                    if method.name == 'iterkeys':
+                        uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                        if uniform_dictionary is not None:
+                            return parser.UniformIterator(
+                                items = [uniform_dictionary.key],
+                                parser = parser,
+                                )
+                    elif method.name == 'iteritems':
+                        uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                        if uniform_dictionary is not None:
+                            return parser.UniformIterator(
+                                items = [
+                                    uniform_dictionary.key,
+                                    uniform_dictionary.value,
+                                    ],
+                                parser = parser,
+                                )
+                    elif method.name == 'itervalues':
+                        uniform_dictionary = method.subject.guess(parser.UniformDictionary)
+                        if uniform_dictionary is not None:
+                            return parser.UniformIterator(
+                                items = [uniform_dictionary.value],
+                                parser = parser,
+                                )
 
         return None
 
@@ -1532,9 +1544,8 @@ class Function(AbstractWrapper):
         assert len(children) == 5
 
         self.body_parsed = True
-        if parser.column.name != 'cmu_c_plafond':
-            body = parser.parse_suite(children[4], container = self)
-            self.body[:] = body
+        body = parser.parse_suite(children[4], container = self)
+        self.body[:] = body
 
     def parse_call(self, call):
         if not self.body_parsed:
@@ -1910,6 +1921,98 @@ class List(AbstractWrapper):
         return cls(container = container, node = node, parser = parser, value = items)
 
 
+class ListGenerator(AbstractWrapper):
+    iterators = None
+    value = None
+    variable_by_name = None
+
+    def __init__(self, container = None, hint = None, iterators = None, node = None, parser = None,
+            value = None, variable_by_name = None):
+        super(ListGenerator, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert isinstance(iterators, list)
+        self.iterators = iterators
+        variables_value = []
+        for iterator in iterators:
+            guessed_iterator = iterator.guess(parser.UniformIterator)
+            if guessed_iterator is None:
+                if len(variable_by_name) == 1 and 'bar' in variable_by_name:
+                    guessed_iterator = parser.UniformIterator(
+                        container = container,
+                        items = [
+                            parser.TaxScale(
+                                container = container,
+                                parser = parser,
+                                ),
+                            ],
+                        parser = parser,
+                        )
+                else:
+                    assert False, "{} has no iterator".format(iterator)
+            variables_value.extend(guessed_iterator.items)
+        if value is not None:
+            assert isinstance(value, AbstractWrapper)
+            self.value = value
+
+        assert isinstance(variable_by_name, collections.OrderedDict)
+        for variable, value in itertools.izip(variable_by_name.itervalues(), variables_value):
+            variable.value = value
+        self.variable_by_name = variable_by_name
+        container.variable_by_name.update(variable_by_name)
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.listmaker, "Unexpected list type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+
+        children = node.children
+        assert len(children) >= 2, "Unexpected length {} of children in for statement:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        iterators = []
+        variable_by_name = collections.OrderedDict()
+        for child_index, child in enumerate(children[1:], 1):
+            if child.type == symbols.comp_for:
+                for_node = child
+                assert len(for_node.children) == 4, \
+                    "Unexpected length {} of for children in list generator statement:\n{}\n\n{}".format(
+                        len(for_node.children), repr(for_node), unicode(for_node).encode('utf-8'))
+                for_word, variables, in_word, iterator = for_node.children
+                assert for_word.type == tokens.NAME and for_word.value == 'for'
+                if variables.type == symbols.exprlist:
+                    variables = variables.children
+                    variable_index = 0
+                    while variable_index < len(variables):
+                        variable = variables[variable_index]
+                        assert variable.type == tokens.NAME
+                        variable_name = variable.value
+                        variable_by_name[variable_name] = parser.Variable(container = container, name = variable_name,
+                            parser = parser)
+                        variable_index += 1
+                        if variable_index >= len(variables):
+                            break
+                        comma = variables[variable_index]
+                        assert comma.type == tokens.COMMA, "Unexpected comma type:\n{}\n\n{}".format(repr(comma),
+                            unicode(comma).encode('utf-8'))
+                        variable_index += 1
+                elif variables.type == tokens.NAME:
+                    variable_name = variables.value
+                    variable_by_name[variable_name] = parser.Variable(container = container, name = variable_name,
+                        parser = parser)
+                else:
+                    assert False, "Unexpected variables in for statement:\n{}\n\n{}".format(repr(node),
+                        unicode(node).encode('utf-8'))
+                assert in_word.type == tokens.NAME and in_word.value == 'in'
+                iterator = parser.parse_value(iterator, container = container)
+                iterators.append(iterator)
+            else:
+                assert False, "Unexpected item in list generator type:\n{}\n\n{}".format(repr(child),
+                    unicode(child).encode('utf-8'))
+
+        self = cls(container = container, iterators = iterators, parser = parser, variable_by_name = variable_by_name)
+        self.value = parser.parse_value(children[0], container = container)
+
+        return self
+
+
 class Logger(AbstractWrapper):
     pass
 
@@ -1930,6 +2033,8 @@ class Module(AbstractWrapper):
         self.variable_by_name = collections.OrderedDict(sorted(dict(
             and_ = parser.Variable(container = self, name = u'and_', parser = parser),
             around = parser.Variable(container = self, name = u'around', parser = parser),
+            apply_along_axis = parser.Variable(container = self, name = u'apply_along_axis', parser = parser),
+            array = parser.Variable(container = self, name = u'array', parser = parser),
             CAT = parser.Variable(container = self, name = u'CAT', parser = parser,
                 value = parser.Enum(parser = parser)),
             ceil = parser.Variable(container = self, name = u'ceil', parser = parser),
@@ -1985,11 +2090,13 @@ class Module(AbstractWrapper):
             # scale_tax_scales = parser.Variable(container = self, name = u'scale_tax_scales', parser = parser),
             SCOLARITE_COLLEGE = parser.Variable(container = self, name = u'SCOLARITE_COLLEGE', parser = parser,
                 value = parser.Number(parser = parser, value = 1)),
+            sorted = parser.Variable(container = self, name = u'sorted', parser = parser),
             startswith = parser.Variable(container = self, name = u'startswith', parser = parser),
             TAUX_DE_PRIME = parser.Variable(container = self, name = u'TAUX_DE_PRIME', parser = parser,
                 value = parser.Number(parser = parser, value = 1 / 4)),
             # TaxScalesTree = parser.Variable(container = self, name = u'TaxScalesTree', parser = parser),
             timedelta64 = parser.Variable(container = self, name = u'timedelta64', parser = parser),
+            ValueError = parser.Variable(container = self, name = u'ValueError', parser = parser),
             VOUS = parser.Variable(container = self, name = u'VOUS', parser = parser,
                 value = parser.Number(parser = parser, value = 0)),
             where = parser.Variable(container = self, name = u'where', parser = parser),
@@ -2126,6 +2233,28 @@ class Period(AbstractWrapper):
         super(Period, self).__init__(container = container, hint = hint, node = node, parser = parser)
         assert unit in (u'day', u'month', u'year'), unit
         self.unit = unit
+
+
+class Raise(AbstractWrapper):
+    exception = None
+
+    def __init__(self, container = None, exception = None, hint = None, node = None, parser = None):
+        super(Raise, self).__init__(container = container, hint = hint, node = node, parser = parser)
+        assert isinstance(exception, AbstractWrapper)
+        self.exception = exception
+
+    @classmethod
+    def parse(cls, node, container = None, parser = None):
+        assert node.type == symbols.raise_stmt, "Unexpected raise type:\n{}\n\n{}".format(repr(node),
+            unicode(node).encode('utf-8'))
+        children = node.children
+        assert len(children) == 2, "Unexpected length {} of children in raise:\n{}\n\n{}".format(
+            len(children), repr(node), unicode(node).encode('utf-8'))
+        raise_word = children[0]
+        assert raise_word.type == tokens.NAME and raise_word.value == 'raise'
+        exception = parser.parse_value(children[1], container = container)
+
+        return cls(container = container, exception = exception, node = node, parser = parser)
 
 
 class Return(AbstractWrapper):
@@ -2297,6 +2426,7 @@ class Term(AbstractWrapper):
             operator = children[child_index]
             assert operator.type in (
                 tokens.DOUBLESLASH,
+                tokens.PERCENT,
                 tokens.SLASH,
                 tokens.STAR,
                 ), "Unexpected operator type:\n{}\n\n{}".format(repr(node), unicode(node).encode('utf-8'))
@@ -2627,6 +2757,7 @@ class Parser(conv.State):
     Key = Key
     Lambda = Lambda
     List = List
+    ListGenerator = ListGenerator
     Logger = Logger
     # Math = Math
     Module = Module
@@ -2636,6 +2767,7 @@ class Parser(conv.State):
     ParentheticalExpression = ParentheticalExpression
     Period = Period
     python_module_by_name = None
+    Raise = Raise
     Return = Return
     Role = Role
     Simulation = Simulation
@@ -2760,6 +2892,9 @@ class Parser(conv.State):
                 elif statement.type == symbols.power:
                     power = self.parse_power(statement, container = container)
                     body.append(power)
+                elif statement.type == symbols.raise_stmt:
+                    raise_statement = self.Raise.parse(statement, container = container, parser = self)
+                    body.append(raise_statement)
                 elif statement.type == symbols.return_stmt:
                     return_wrapper = self.Return.parse(statement, container = container, parser = self)
                     body.append(return_wrapper)
@@ -2816,6 +2951,8 @@ class Parser(conv.State):
                 value = self.parse_value(value, container = container)
                 return self.ParentheticalExpression(container = container, node = node, parser = self, value = value)
             if value.type == symbols.listmaker:
+                if any(child.type == symbols.comp_for for child in value.children):
+                    return self.ListGenerator.parse(value, container = container, parser = self)
                 return self.List.parse(value, container = container, parser = self)
             singleton = self.parse_value(value, container = container)
             return self.List(container = container, node = value, parser = self, value = [singleton])
