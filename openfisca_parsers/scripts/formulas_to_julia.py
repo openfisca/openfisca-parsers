@@ -2860,8 +2860,8 @@ def main():
 
         if column.name in (
                 'coefficient_proratisation',
-                'nombre_heures_remunerees',
                 # 'nombre_jours_calendaires',
+                # 'zone_apl',
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
