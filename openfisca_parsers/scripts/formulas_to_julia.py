@@ -2140,9 +2140,12 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
                   @calculate(contrat_de_travail_arrivee, period)
                   @calculate(contrat_de_travail_depart, period)
                   debut_mois = firstdayofmonth(period.start)
-                  fin_mois = lastdayofmonth(period.start) + Day(1)
-                  jours_travailles = int(min(contrat_de_travail_depart, fin_mois)) - int(max(contrat_de_travail_arrivee,
-                    debut_mois))
+                  fin_mois = lastdayofmonth(period.start)
+                  jours_travailles = max(
+                    int(min(contrat_de_travail_depart, fin_mois)) .- int(max(contrat_de_travail_arrivee, debut_mois))
+                      .+ 1,
+                    0,
+                  )
                   return period, jours_travailles
                 end
                 """).format(
