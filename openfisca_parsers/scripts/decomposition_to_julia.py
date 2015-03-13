@@ -65,14 +65,14 @@ julia_file_header = textwrap.dedent(u"""\
 
 
 def transform_julia_list_tree_to_julia_source_code(node, depth = 0):
-    indent_level = 4
-    return u'{depth}@decomposition_node {name} {children}'.format(
-        children = u'[]\n' if node[1] is None else u'[\n{children}{depth}]\n'.format(
-            children = ''.join(
+    indent_level = 2
+    return u'{depth}{name}{children}\n'.format(
+        children = u'' if node[1] is None else u' [\n{inner_children}{depth}]'.format(
+            depth = ' ' * indent_level * depth,
+            inner_children = ''.join(
                 transform_julia_list_tree_to_julia_source_code(child_node, depth + 1)
                 for child_node in node[1]
                 ),
-            depth = ' ' * indent_level * depth,
             ),
         depth = ' ' * indent_level * depth,
         name = node[0],
@@ -113,7 +113,7 @@ def main():
     xml_file_path = os.path.join(tax_benefit_system.DECOMP_DIR, tax_benefit_system.DEFAULT_DECOMP_FILE) \
         if args.decomposition is None else args.decomposition
     tree = xml.etree.ElementTree.parse(xml_file_path)
-    decomposition_julia = u'const DECOMPOSITION = ' + xml_to_julia(tax_benefit_system, tree)
+    decomposition_julia = u'decomposition = @define_decomposition ' + xml_to_julia(tax_benefit_system, tree)
 
     julia_path = os.path.join(args.julia_package_dir, 'src', 'decompositions.jl')
     with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
