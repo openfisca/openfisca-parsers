@@ -2367,9 +2367,20 @@ class Parser(formulas_parsers_2to3.Parser):
             assert cerfa_field is None
             cerfa_field_str = None
 
+        if column.name in (
+                entity.role_for_person_variable_name
+                for entity in tax_benefit_system.entity_class_by_key_plural.itervalues()
+                ):
+            increment_role = True
+        else:
+            increment_role = False
+
         default = column.__dict__.get('default')
         if default is None:
-            default_str = None
+            if increment_role:
+                default_str = '1'
+            else:
+                default_str = None
         elif default is True:
             default_str = u"true"
         elif isinstance(default, datetime.date):
@@ -2386,7 +2397,7 @@ class Parser(formulas_parsers_2to3.Parser):
             values_str = None
         else:
             values_str = u"[\n{}  ]".format(u''.join(
-                u'    "{}" => {},\n'.format(symbol, index)
+                u'    "{}" => {},\n'.format(symbol, index + (1 if increment_role else 0))
                 for index, symbol in sorted(
                     (index1, symbol1)
                     for symbol1, index1 in enum
