@@ -113,7 +113,7 @@ def main():
     xml_file_path = os.path.join(tax_benefit_system.DECOMP_DIR, tax_benefit_system.DEFAULT_DECOMP_FILE) \
         if args.decomposition is None else args.decomposition
     tree = xml.etree.ElementTree.parse(xml_file_path)
-    decomposition_julia = u'decomposition = @define_decomposition ' + xml_to_julia(tax_benefit_system, tree)
+    decomposition_julia = u'default_decomposition = @define_decomposition ' + xml_to_julia(tax_benefit_system, tree)
 
     julia_path = os.path.join(args.julia_package_dir, 'src', 'decompositions.jl')
     with codecs.open(julia_path, 'w', encoding = 'utf-8') as julia_file:
