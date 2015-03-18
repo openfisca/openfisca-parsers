@@ -66,25 +66,30 @@ julia_file_header = textwrap.dedent(u"""\
 
 def transform_julia_list_tree_to_julia_source_code(node, depth = 0):
     indent_level = 2
-    return u'{depth}{name}{children}\n'.format(
-        children = u'' if node[1] is None else u' [\n{inner_children}{depth}]'.format(
+    return u'{depth}{name}{labels}{children}\n'.format(
+        children = '' if node['children'] is None else u' [\n{inner_children}{depth}]'.format(
             depth = ' ' * indent_level * depth,
             inner_children = ''.join(
                 transform_julia_list_tree_to_julia_source_code(child_node, depth + 1)
-                for child_node in node[1]
+                for child_node in node['children']
                 ),
             ),
         depth = ' ' * indent_level * depth,
-        name = node[0],
+        labels = '' if node['children'] is None else u' {node[label]} {node[short_label]}'.format(node = node),
+        name = node['name'],
         )
 
 
 def transform_node_xml_json_to_julia_list_tree(node_xml_json):
-    variable_name = node_xml_json['code']
     children_variables_name = map(transform_node_xml_json_to_julia_list_tree, node_xml_json['NODE']) \
         if node_xml_json.get('NODE') \
         else None
-    return [variable_name, children_variables_name]
+    return {
+        'children': children_variables_name,
+        'label': node_xml_json['desc'],
+        'name': node_xml_json['code'],
+        'short_label': node_xml_json['shortname'],
+        }
 
 
 def xml_to_julia(tax_benefit_system, tree):
