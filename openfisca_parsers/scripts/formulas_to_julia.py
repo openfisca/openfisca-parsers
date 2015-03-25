@@ -2873,9 +2873,11 @@ def main():
             continue
 
         if column.name in (
+                # 'cmu_c_plafond',  # custom Julia implementation
                 'coefficient_proratisation',
-                # 'nombre_jours_calendaires',
-                # 'zone_apl',
+                # 'nombre_jours_calendaires',  # custom Julia implementation
+                # 'remuneration_apprenti',
+                # 'zone_apl',  # custom Julia implementation
                 ):
             # Skip formulas that can't be easily converted to Julia and handle them as input variables.
             input_variable_definition_julia_source_by_name[column.name] = parser.source_julia_column_without_function()
