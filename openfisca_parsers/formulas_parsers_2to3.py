@@ -512,6 +512,24 @@ class Attribute(AbstractWrapper):
                 child_type = child_json['@type']
                 if child_type == u'Scale':
                     return parser.TaxScale(parser = parser)
+        elif issubclass(parser.UniformDictionary, expected):
+            if self.name == '_array_by_period':
+                holder = self.subject.guess(parser.Holder)
+                if holder is not None:
+                    column = holder.column
+                    entity_class = parser.tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                    cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
+                    return parser.UniformDictionary(
+                        key = parser.Period(
+                            parser = parser,
+                            ),
+                        parser = parser,
+                        value = parser.Array(
+                            cell = cell_wrapper,
+                            entity_class = parser.entity_class,
+                            parser = parser,
+                            ),
+                        )
 
         return None
 
@@ -2047,6 +2065,7 @@ class Module(AbstractWrapper):
                 value = parser.Number(parser = parser, value = 1)),
             date = parser.Variable(container = self, name = u'date', parser = parser),
             datetime64 = parser.Variable(container = self, name = u'datetime64', parser = parser),
+            dict = parser.Variable(container = self, name = u'dict', parser = parser),
             # ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser,
             #     value = parser.UniformList(parser = parser, value = parser.Number(parser = parser, value = x))),
             ENFS = parser.Variable(container = self, name = u'ENFS', parser = parser),
@@ -2231,8 +2250,9 @@ class Period(AbstractWrapper):
 
     def __init__(self, container = None, hint = None, node = None, parser = None, unit = None):
         super(Period, self).__init__(container = container, hint = hint, node = node, parser = parser)
-        assert unit in (u'day', u'month', u'year'), unit
-        self.unit = unit
+        if unit is not None:
+            assert unit in (u'day', u'month', u'year'), unit
+            self.unit = unit
 
 
 class Raise(AbstractWrapper):
@@ -2941,15 +2961,38 @@ class Parser(conv.State):
             assert len(children) == 3, "Unexpected length {} of children in atom:\n{}\n\n{}".format(len(children),
                 repr(node), unicode(node).encode('utf-8'))
             left_parenthesis, value, right_parenthesis = children
-            assert left_parenthesis.type in (tokens.LPAR, tokens.LSQB), \
+            assert left_parenthesis.type in (tokens.LBRACE, tokens.LPAR, tokens.LSQB), \
                 "Unexpected left parenthesis {} in atom:\n{}\n\n{}".format(left_parenthesis.value, repr(node),
                     unicode(node).encode('utf-8'))
-            assert right_parenthesis.type in (tokens.RPAR, tokens.RSQB), \
+            assert right_parenthesis.type in (tokens.RBRACE, tokens.RPAR, tokens.RSQB), \
                 "Unexpected right parenthesis {} in atom:\n{}\n\n{}".format(right_parenthesis.value, repr(node),
                     unicode(node).encode('utf-8'))
             if left_parenthesis.type == tokens.LPAR:
                 value = self.parse_value(value, container = container)
                 return self.ParentheticalExpression(container = container, node = node, parser = self, value = value)
+            if value.type == symbols.dictsetmaker:
+                dict_children = value.children
+                child_index = 0
+                while child_index < len(dict_children):
+                    item_key = self.parse_value(dict_children[child_index], container = container)
+                    assert dict_children[child_index + 1].type == tokens.COLON, \
+                        "Unexpected colon {} in atom:\n{}\n\n{}".format(dict_children[child_index + 1], repr(value),
+                            unicode(value).encode('utf-8'))
+                    item_value = self.parse_value(dict_children[child_index + 2], container = container)
+                    child_index += 3
+                    if dict_children[child_index].type == tokens.COMMA:
+                        child_index += 1
+                    else:
+                        assert child_index == len(dict_children), \
+                            "Missing comma after dictionary item {} in atom:\n{}\n\n{}".format(child_index, repr(value),
+                                unicode(value).encode('utf-8'))
+                # TODO: Currently it is assumed that dictionary is uniform.
+                return self.UniformDictionary(
+                    container = container,
+                    key = item_key,
+                    parser = self,
+                    value = item_value,
+                    )
             if value.type == symbols.listmaker:
                 if any(child.type == symbols.comp_for for child in value.children):
                     return self.ListGenerator.parse(value, container = container, parser = self)

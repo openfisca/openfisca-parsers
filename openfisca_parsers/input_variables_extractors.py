@@ -85,7 +85,11 @@ class Parser(formulas_parsers_2to3.Parser):
             return None
         self.column = column
         self.input_variables = input_variables = set()
-        self.FormulaClassFileInput.parse(formula_class, parser = self)
+        try:
+            self.FormulaClassFileInput.parse(formula_class, parser = self)
+        except AssertionError:
+            # When parsing fails, assume that all input variables have already been parsed.
+            pass
         del self.column
         del self.input_variables
         self.python_module_by_name.clear()
