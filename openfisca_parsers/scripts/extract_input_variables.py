@@ -46,6 +46,8 @@ def main():
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument('-c', '--country-package', default = 'openfisca_france',
         help = u'name of the OpenFisca package to use for country-specific variables & formulas')
+    parser.add_argument('-n', '--name', default = None,
+        help = u'name of the formula to extract variables from (default: all)')
     parser.add_argument('-v', '--verbose', action = 'store_true', default = False, help = "increase output verbosity")
     args = parser.parse_args()
     logging.basicConfig(level = logging.DEBUG if args.verbose else logging.WARNING, stream = sys.stdout)
@@ -56,7 +58,14 @@ def main():
 
     extractor = input_variables_extractors.setup(tax_benefit_system)
 
-    for column in tax_benefit_system.column_by_name.itervalues():
+    if args.name is None:
+        for column in tax_benefit_system.column_by_name.itervalues():
+            print column.name
+            input_variables = extractor.get_input_variables(column)
+            if input_variables is not None:
+                print u' ', u', '.join(sorted(input_variables))
+    else:
+        column = tax_benefit_system.column_by_name[args.name]
         print column.name
         input_variables = extractor.get_input_variables(column)
         if input_variables is not None:
