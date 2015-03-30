@@ -66,7 +66,7 @@ julia_file_header = textwrap.dedent(u"""\
 
 def transform_julia_list_tree_to_julia_source_code(node, depth = 0):
     indent_level = 2
-    return u'{depth}{name}{labels}{children}\n'.format(
+    return u'{depth}{node[name]} "{node[label]}" "{node[short_label]}" [{node[color]}]{children}\n'.format(
         children = '' if node['children'] is None else u' [\n{inner_children}{depth}]'.format(
             depth = ' ' * indent_level * depth,
             inner_children = ''.join(
@@ -75,8 +75,7 @@ def transform_julia_list_tree_to_julia_source_code(node, depth = 0):
                 ),
             ),
         depth = ' ' * indent_level * depth,
-        labels = '' if node['children'] is None else u' {node[label]} {node[short_label]}'.format(node = node),
-        name = node['name'],
+        node = node,
         )
 
 
@@ -86,6 +85,7 @@ def transform_node_xml_json_to_julia_list_tree(node_xml_json):
         else None
     return {
         'children': children_variables_name,
+        'color': node_xml_json.get('color') or u'0,0,0',
         'label': node_xml_json['desc'],
         'name': node_xml_json['code'],
         'short_label': node_xml_json['shortname'],
