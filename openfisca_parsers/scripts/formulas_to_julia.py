@@ -2086,6 +2086,60 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
 
     def source_julia(self, depth = 0):
         parser = self.parser
+        if parser.column.name == 'age':
+            return textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  if !isempty(variable.array_by_period)
+                    for (last_period, last_array) in sort(collect(variable.array_by_period), rev = true)
+                      last_start = last_period.start
+                      if day(last_start) == day(start)
+                        return period, last_array .+ int(year(start) - year(last_start) +
+                          (month(start) - month(last_start)) / 12)
+                    end
+                  end
+                  has_birth = !isempty(get_variable!(simulation, "birth").array)
+                  if !has_birth
+                    has_agem = !isemtpy(get_variable!(simulation, "agem").array_by_period)
+                    if has_agem
+                      return period, div(calculate(simulation, "agem", period), 12)
+                    end
+                  end
+                  @calculate(birth, period)
+                  return period, Int[
+                    year(period.start) - year(birth_cell)
+                    for birth_cell in calculate(simulation, "birth", period)
+                  ]
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(is_formula = True),
+                )
+        if parser.column.name == 'agem':
+            return textwrap.dedent(u"""
+                {call} do simulation, variable, period
+                  if !isempty(variable.array_by_period)
+                    for (last_period, last_array) in sort(collect(variable.array_by_period), rev = true)
+                      last_start = last_period.start
+                      if day(last_start) == day(start)
+                        return period, last_array .+ ((year(start) - year(last_start)) * 12 +
+                          (month(start) - month(last_start)))
+                    end
+                  end
+                  has_birth = !isempty(get_variable!(simulation, "birth").array)
+                  if !has_birth
+                    has_age = !isemtpy(get_variable!(simulation, "age").array_by_period)
+                    if has_age
+                      return period, calculate(simulation, "age", period) * 12
+                    end
+                  end
+                  @calculate(birth, period)
+                  return period, Int[
+                    (year(period.start) - year(birth_cell)) * 12 + month(period.start) - month(birth_cell)
+                    for birth_cell in calculate(simulation, "birth", period)
+                  ]
+                end
+                """).format(
+                call = parser.source_julia_column_without_function(is_formula = True),
+                )
         if parser.column.name == 'cmu_c_plafond':
             return textwrap.dedent(u"""
                 {call} do simulation, variable, period
@@ -2873,6 +2927,8 @@ def main():
             continue
 
         if column.name in (
+                # 'age',  # custom Julia implementation
+                # 'agem',  # custom Julia implementation
                 # 'cmu_c_plafond',  # custom Julia implementation
                 'coefficient_proratisation',
                 # 'nombre_jours_calendaires',  # custom Julia implementation
