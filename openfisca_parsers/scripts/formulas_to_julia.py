@@ -2089,19 +2089,20 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
         if parser.column.name == 'age':
             return textwrap.dedent(u"""
                 {call} do simulation, variable, period
-                  if !isempty(variable.array_by_period)
-                    for (last_period, last_array) in sort(collect(variable.array_by_period), rev = true)
-                      last_start = last_period.start
-                      if day(last_start) == day(start)
-                        return period, last_array .+ int(year(start) - year(last_start) +
-                          (month(start) - month(last_start)) / 12)
-                    end
-                  end
                   has_birth = !isempty(get_variable!(simulation, "birth").array)
                   if !has_birth
-                    has_agem = !isemtpy(get_variable!(simulation, "agem").array_by_period)
-                    if has_agem
-                      return period, div(calculate(simulation, "agem", period), 12)
+                    has_age_en_mois = !isemtpy(get_variable!(simulation, "age_en_mois").array_by_period)
+                    if has_age_en_mois
+                      return period, div(calculate(simulation, "age_en_mois", period), 12)
+                    end
+
+                    if !isempty(variable.array_by_period)
+                      for (last_period, last_array) in sort(collect(variable.array_by_period), rev = true)
+                        last_start = last_period.start
+                        if day(last_start) == day(start)
+                          return period, last_array .+ int(year(start) - year(last_start) +
+                            (month(start) - month(last_start)) / 12)
+                      end
                     end
                   end
                   @calculate(birth, period)
@@ -2113,7 +2114,7 @@ class FormulaClass(Class, formulas_parsers_2to3.FormulaClass):
                 """).format(
                 call = parser.source_julia_column_without_function(is_formula = True),
                 )
-        if parser.column.name == 'agem':
+        if parser.column.name == 'age_en_mois':
             return textwrap.dedent(u"""
                 {call} do simulation, variable, period
                   if !isempty(variable.array_by_period)
@@ -2475,7 +2476,7 @@ class Parser(formulas_parsers_2to3.Parser):
         start_date = column.start
         stop_date = column.end
 
-        if column.name in ('age', 'agem'):
+        if column.name in ('age', 'age_en_mois'):
             assert default_str is None, default_str
             default_str = u"-9999"
             value_at_period_to_cell = textwrap.dedent(u"""\
@@ -2928,7 +2929,7 @@ def main():
 
         if column.name in (
                 # 'age',  # custom Julia implementation
-                # 'agem',  # custom Julia implementation
+                # 'age_en_mois',  # custom Julia implementation
                 # 'cmu_c_plafond',  # custom Julia implementation
                 'coefficient_proratisation',
                 # 'nombre_jours_calendaires',  # custom Julia implementation
