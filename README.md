@@ -8,8 +8,9 @@ of the OpenFisca formulas.
 
 ## Enrich the web API
 
-The [OpenFisca web API](https://github.com/openfisca/openfisca-web-api) can take advantage of OpenFisca Parsers
-if it is installed: see [API data from parsers](https://github.com/openfisca/openfisca-web-api#data-from-parsers).
+The [OpenFisca web API](https://github.com/openfisca/openfisca-web-api) outputs more information if OpenFisca Parsers
+is installed: see
+[Web API introspection with parsers](https://github.com/openfisca/openfisca-web-api#introspection-with-parsers).
 
 ## OpenFisca in Julia
 
