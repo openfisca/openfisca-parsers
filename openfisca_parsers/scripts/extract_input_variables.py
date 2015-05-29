@@ -33,8 +33,6 @@ import logging
 import os
 import sys
 
-from openfisca_core import formulas
-
 from openfisca_parsers import input_variables_extractors
 
 
@@ -61,15 +59,19 @@ def main():
     if args.name is None:
         for column in tax_benefit_system.column_by_name.itervalues():
             print column.name
-            input_variables = extractor.get_input_variables(column)
+            input_variables, parameters = extractor.get_input_variables_and_parameters(column)
             if input_variables is not None:
-                print u' ', u', '.join(sorted(input_variables))
+                print u' Input variables:', u', '.join(sorted(input_variables))
+            if parameters:
+                print u' Parameters:', u', '.join(sorted(parameters))
     else:
         column = tax_benefit_system.column_by_name[args.name]
         print column.name
-        input_variables = extractor.get_input_variables(column)
+        input_variables, parameters = extractor.get_input_variables_and_parameters(column)
         if input_variables is not None:
-            print u' ', u', '.join(sorted(input_variables))
+            print u' Input variables:', u', '.join(sorted(input_variables))
+        if parameters:
+            print u' Parameters:', u', '.join(sorted(parameters))
 
     return 0
 

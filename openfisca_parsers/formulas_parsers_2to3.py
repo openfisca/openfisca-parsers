@@ -458,11 +458,12 @@ class Attribute(AbstractWrapper):
         elif issubclass(parser.CompactNode, expected):
             compact_node = self.subject.guess(parser.CompactNode)
             if compact_node is not None:
-                child_json = compact_node.value['children'][self.name]
-                child_type = child_json['@type']
-                if child_type == u'Node':
-                    return parser.CompactNode(is_reference = compact_node.is_reference, name = self.name,
-                        parent = compact_node, parser = parser, value = child_json)
+                child_json = compact_node.value['children'].get(self.name)
+                if child_json is not None:
+                    child_type = child_json['@type']
+                    if child_type == u'Node':
+                        return parser.CompactNode(is_reference = compact_node.is_reference, name = self.name,
+                            parent = compact_node, parser = parser, value = child_json)
         elif issubclass(parser.Date, expected):
             if self.name == 'date':
                 period = self.subject.guess(parser.Period)
