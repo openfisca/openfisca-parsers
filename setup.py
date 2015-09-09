@@ -43,7 +43,7 @@ doc_lines = __doc__.split('\n')
 
 setup(
     name = 'OpenFisca-Parsers',
-    version = '0.5.dev0',
+    version = '0.5.0.dev0',
 
     author = 'OpenFisca Team',
     author_email = 'contact@openfisca.fr',
@@ -56,8 +56,8 @@ setup(
 
     install_requires = [
         'Biryani[datetimeconv] >= 0.10.1',
-        'OpenFisca-Core >= 0.5dev',
-        'numpy',
+        'OpenFisca-Core >= 0.5.0',
+        'numpy >= 1.6',
         ],
     packages = find_packages(),
     zip_safe = False,
