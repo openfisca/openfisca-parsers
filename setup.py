@@ -43,7 +43,7 @@ doc_lines = __doc__.split('\n')
 
 setup(
     name = 'OpenFisca-Parsers',
-    version = '0.5.0.dev0',
+    version = '0.5.0',
 
     author = 'OpenFisca Team',
     author_email = 'contact@openfisca.fr',
@@ -60,5 +60,4 @@ setup(
         'numpy >= 1.6',
         ],
     packages = find_packages(),
-    zip_safe = False,
     )
