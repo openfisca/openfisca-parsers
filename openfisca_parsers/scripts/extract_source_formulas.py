@@ -40,23 +40,6 @@ app_name = os.path.splitext(os.path.basename(__file__))[0]
 log = logging.getLogger(app_name)
 
 
-def extract_source_formulas(tax_benefit_system, name):
-    extractor = source_formulas_extractors.setup(tax_benefit_system)
-
-    source_formulas = set()
-    remaining_names = set([name])
-    while remaining_names:
-        name = remaining_names.pop()
-        column = tax_benefit_system.column_by_name[name]
-        new_names = extractor.get_source_formulas(column)
-        if new_names is not None:
-            source_formulas.add(name)
-            for new_name in new_names:
-                if new_name not in source_formulas:
-                    remaining_names.add(new_name)
-    return source_formulas
-
-
 def main():
     parser = argparse.ArgumentParser(description = __doc__)
     parser.add_argument('-c', '--country-package', default = 'openfisca_france',
@@ -71,7 +54,7 @@ def main():
     TaxBenefitSystem = country_package.init_country()
     tax_benefit_system = TaxBenefitSystem()
 
-    source_formulas = extract_source_formulas(tax_benefit_system, args.name)
+    source_formulas = source_formulas_extractors.extract_source_formulas(tax_benefit_system, args.name)
     if source_formulas:
         print u' Source formulas:', u'\n'.join(
             '  - {}'.format(name)

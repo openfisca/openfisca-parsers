@@ -95,6 +95,23 @@ class Parser(formulas_parsers_2to3.Parser):
         return source_formulas
 
 
+def extract_source_formulas(tax_benefit_system, name):
+    extractor = setup(tax_benefit_system)
+
+    source_formulas = set()
+    remaining_names = set([name])
+    while remaining_names:
+        name = remaining_names.pop()
+        column = tax_benefit_system.column_by_name[name]
+        new_names = extractor.get_source_formulas(column)
+        if new_names is not None:
+            source_formulas.add(name)
+            for new_name in new_names:
+                if new_name not in source_formulas:
+                    remaining_names.add(new_name)
+    return source_formulas
+
+
 def setup(tax_benefit_system):
     return Parser(
         driver = lib2to3.pgen2.driver.Driver(lib2to3.pygram.python_grammar, convert = lib2to3.pytree.convert,
