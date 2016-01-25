@@ -64,7 +64,7 @@ class Call(formulas_parsers_2to3.Call):
                 return
             elif isinstance(input_variable, parser.String):
                 input_variable_name = input_variable.value
-                # Note: input_variable_name may be None when parsing salbrut, chobrut & rstbrut.
+                # Note: input_variable_name may be None when parsing salbrut, chomage_brut & retraite_brute.
                 if input_variable_name is not None:
                     parser.source_formulas.add(input_variable_name)
                     return
