@@ -2515,7 +2515,7 @@ class Parser(formulas_parsers_2to3.Parser):
         elif formula_class.base_function.func_name in (
                 formulas.last_duration_last_value.func_name,
                 formulas.missing_value.func_name,
-                formulas.permanent_default_value.func_name,
+                base_functions.permanent_default_value.func_name,
                 formulas.requested_period_default_value.func_name,
                 formulas.requested_period_last_value.func_name,
                 ):
