@@ -2710,7 +2710,7 @@ class FormulaFunction(Function):
     def parse_parameters(self):
         super(FormulaFunction, self).parse_parameters()
         parser = self.parser
-        assert self.positional_parameters == ['self', 'simulation', 'period'], self.positional_arguments
+        assert self.positional_parameters == ['self', 'simulation', 'period'], self.positional_parameters
         assert not self.named_parameters, self.named_arguments
         formula_variable = self.variable_by_name['self']
         assert formula_variable.value is None, formula_variable.value
