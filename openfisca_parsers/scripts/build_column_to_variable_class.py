@@ -124,9 +124,9 @@ def main():
             assert column_arg_node.target is not None, 'Expected kwargs only. Node: "{}"'.format(str(column_arg_node))
             column_arg_name = column_arg_node.target.value
             column_arg_value_node = column_arg_node.value
-            if column_arg_name in ('default', 'enum', 'is_permanent', 'max_length', 'val_type'):
+            if column_arg_name in ('default', 'enum', 'max_length', 'val_type'):
                 column_kwarg_by_name[column_arg_name] = nice_repr(column_arg_value_node)
-            elif column_arg_name in ('cerfa_field', 'label'):
+            elif column_arg_name in ('cerfa_field', 'is_permanent', 'label'):
                 class_attribute_by_name[column_arg_name] = nice_repr(column_arg_value_node, empty_strings_to_none=True)
             elif column_arg_name == 'entity':
                 class_attribute_by_name['entity_class'] = entity_class_str_by_symbol[column_arg_value_node.to_python()]
