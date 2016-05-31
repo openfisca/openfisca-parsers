@@ -15,7 +15,16 @@ Assuming you are in an `openfisca` working directory:
 ```
 git clone https://github.com/openfisca/openfisca-parsers.git
 cd openfisca-parsers
-pip install --editable . --user # Microsoft Windows users must not use the `--user` option
+pip install --editable .
+```
+
+## Run the parsers
+
+Example:
+
+```
+python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py
+python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati
 ```
 
 ## Enrich the web API
