@@ -31,7 +31,6 @@ import argparse
 import json
 import logging
 import sys
-import pkg_resources
 
 from redbaron import RedBaron
 
@@ -41,21 +40,25 @@ from openfisca_parsers import navigators, visitors
 # Helpers
 
 
-def show_json(data):
-    print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
+def show_ofnodes(ofnodes):
+    print(json.dumps(ofnodes, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
 
 
 # Parsing functions
 
 
-def parse_string(source_code):
+def parse_string(source_code, variable_name=None):
     red = RedBaron(source_code)
-    variable_class_rbnodes = navigators.find_all_variable_classes(red)
     context = {'ofnodes': []}
-    ofnodes = [
-        visitors.visit_rbnode(rbnode, context)
-        for rbnode in variable_class_rbnodes
-        ]
+    if variable_name is None:
+        variable_class_rbnodes = navigators.find_all_variable_classes(red)
+        ofnodes = [
+            visitors.visit_rbnode(rbnode, context)
+            for rbnode in variable_class_rbnodes
+            ]
+    else:
+        variable_class_rbnode = navigators.find_variable_class(red, variable_name)
+        ofnodes = [visitors.visit_rbnode(variable_class_rbnode, context)]
     return ofnodes
 
 
@@ -64,18 +67,17 @@ def parse_string(source_code):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    # parser.add_argument('file_path', help=u'path of the file to parse')
-    parser.add_argument('-v', '--verbose', action='store_true', default=False, help="increase output verbosity")
+    parser.add_argument('source_file_path', help=u'Path of the Python source file to parse')
+    parser.add_argument('--variable', dest='variable_name', help=u'Parse only this simulation Variable')
+    parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, stream=sys.stdout)
 
-    openfisca_france_location = pkg_resources.get_distribution('OpenFisca-France').location
-    source_file_path = '{}/openfisca_france/model/prelevements_obligatoires/isf.py'.format(openfisca_france_location)
-    with open(source_file_path) as source_file:
+    with open(args.source_file_path) as source_file:
         source_code = source_file.read()
 
-    ofnodes = parse_string(source_code)
-    show_json(ofnodes)
+    ofnodes = parse_string(source_code, args.variable_name)
+    show_ofnodes(ofnodes)
 
     return 0
 

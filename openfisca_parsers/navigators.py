@@ -67,9 +67,13 @@ def find_parameters(rbnodes):
         ))
 
 
+def find_variable_class(rbnode, name):
+    return rbnode.find('class', inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes), name=name)
+
+
 def is_legislation_at_rbnodes(rbnodes):
     return len(rbnodes) >= 2 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'legislation_at'
 
 
 def is_simulation_calculate_rbnodes(rbnodes):
-    return len(rbnodes) >= 2 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'calculate'
+    return len(rbnodes) == 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'calculate'
