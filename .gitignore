@@ -1,6 +1,7 @@
 .spyderproject
 build/
 dist/
+json/
 *.egg-info
 *.pyc
 *~
