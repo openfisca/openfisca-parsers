@@ -48,14 +48,20 @@ def show_ofnodes(ofnodes):
 
 
 def parse_string(source_code, variable_name=None):
+    def iter_ofnodes(rbnodes):
+        for rbnode in rbnodes:
+            variable_name = rbnode.name
+            try:
+                ofnode = visitors.visit_rbnode(rbnode, context)
+            except NotImplementedError as exc:
+                print u'Error parsing OpenFisca Variable "{}": {}'.format(variable_name, exc)
+            yield ofnode
+
     red = RedBaron(source_code)
     context = {'ofnodes': []}
     if variable_name is None:
         variable_class_rbnodes = navigators.find_all_variable_classes(red)
-        ofnodes = [
-            visitors.visit_rbnode(rbnode, context)
-            for rbnode in variable_class_rbnodes
-            ]
+        ofnodes = list(iter_ofnodes(variable_class_rbnodes))
     else:
         variable_class_rbnode = navigators.find_variable_class(red, variable_name)
         ofnodes = [visitors.visit_rbnode(variable_class_rbnode, context)]
