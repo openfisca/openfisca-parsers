@@ -5,7 +5,7 @@
 # OpenFisca -- A versatile microsimulation software
 # By: OpenFisca Team <contact@openfisca.fr>
 #
-# Copyright (C) 2011, 2012, 2013, 2014, 2015 OpenFisca Team
+# Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016 OpenFisca Team
 # https://github.com/openfisca
 #
 # This file is part of OpenFisca.
@@ -54,7 +54,7 @@ julia_file_header = textwrap.dedent(u"""\
     # OpenFisca -- A versatile microsimulation software
     # By: OpenFisca Team <contact@openfisca.fr>
     #
-    # Copyright (C) 2011, 2012, 2013, 2014, 2015 OpenFisca Team
+    # Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016 OpenFisca Team
     # https://github.com/openfisca
     #
     # This file is part of OpenFisca.
