@@ -72,8 +72,10 @@ def find_variable_class(rbnode, name):
 
 
 def is_legislation_at_rbnodes(rbnodes):
+    # Detects simulation.legislation_at calls.
     return len(rbnodes) >= 2 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'legislation_at'
 
 
 def is_simulation_calculate_rbnodes(rbnodes):
-    return len(rbnodes) == 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'calculate'
+    # Detects simulation.calculate or simulation.compute calls.
+    return len(rbnodes) == 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value in ('calculate', 'compute')
