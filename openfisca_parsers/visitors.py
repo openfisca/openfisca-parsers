@@ -38,11 +38,22 @@ ofnodes have this shape: {'type': 'CamelCase'}. The other fields depend on the '
 """
 
 
-from toolz.curried import filter, keyfilter, map, merge
+from toolz.curried import filter, keyfilter, map, merge, valfilter
 from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import navigators, shortid
+
+
+def is_not_none(value):
+    return value is not None
+
+
+# Context helpers
+
+
+def make_initial_context():
+    return {'ofnodes': []}
 
 
 # RedBaron nodes helpers
@@ -120,7 +131,7 @@ def make_ofnode(ofnode, rbnode, context, with_rbnodes=False):
     if with_rbnodes:
         ofnode = merge(ofnode, {'_rbnode': rbnode})
     context['ofnodes'].append(ofnode)
-    return ofnode
+    return valfilter(is_not_none, ofnode)
 
 
 # Generic visitor: rbnode -> ofnode. All specific visitors must call it to concentrate flow (ie log calls).
@@ -159,8 +170,13 @@ def visit_binary_operator(rbnode, context):
         }, rbnode, context)
 
 
+def visit_assignment(rbnode, context):
+    """Just forward to right hand side node."""
+    return visit_rbnode(rbnode.value, context)
+
+
 def visit_associative_parenthesis(rbnode, context):
-    """Just forward to child node."""
+    """Just forward to inner node."""
     return visit_rbnode(rbnode.value, context)
 
 
@@ -206,7 +222,7 @@ def visit_atomtrailers(rbnode, context):
     elif navigators.is_legislation_at_rbnodes(rbnode.value):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
-        parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes))
+        parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes)) or None
         parameter_ofnode = find_parameter_by_path_fragments(context['ofnodes'], parameter_path_fragments)
         if parameter_ofnode is None:
             parameter_ofnode = make_ofnode({
@@ -315,7 +331,7 @@ def visit_def(rbnode, context):
         if rbnode.type in ('comment', 'string'):
             continue
         elif rbnode.type == 'assignment':
-            ofnode = visit_rbnode(rbnode.value, context)
+            ofnode = visit_rbnode(rbnode, context)
             context['ofnode_by_pyvariable_name'][rbnode.target.value] = ofnode
         elif rbnode.type == 'return':
             # assert index == len(body_rbnodes) - 1, u'return is not the last function statement'

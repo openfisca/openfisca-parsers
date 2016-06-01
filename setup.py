@@ -59,5 +59,10 @@ setup(
         'numpy >= 1.11',
         'toolz',
         ],
-    packages = find_packages(),
+    extras_require = {
+        'test': [
+            'nose',
+            ],
+        },
+    packages = find_packages(exclude=['openfisca_parsers.tests*']),
     )

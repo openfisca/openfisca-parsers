@@ -58,7 +58,7 @@ def parse_string(source_code, variable_name=None):
             yield ofnode
 
     red = RedBaron(source_code)
-    context = {'ofnodes': []}
+    context = visitors.make_initial_context()
     if variable_name is None:
         variable_class_rbnodes = navigators.find_all_variable_classes(red)
         ofnodes = list(iter_ofnodes(variable_class_rbnodes))
