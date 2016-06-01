@@ -116,7 +116,7 @@ def find_variable_by_name(ofnodes, name):
 def make_ofnode(ofnode, rbnode, context, with_rbnodes=False):
     """Create and return a new ofnode. The ofnode is also added to the list of nodes in the context."""
     id = shortid.generate()
-    ofnode = merge(ofnode, {'_id': id})
+    ofnode = merge(ofnode, {'id': id})
     if with_rbnodes:
         ofnode = merge(ofnode, {'_rbnode': rbnode})
     context['ofnodes'].append(ofnode)

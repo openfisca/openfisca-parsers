@@ -18,13 +18,20 @@ cd openfisca-parsers
 pip install --editable .
 ```
 
-## Run the parsers
+## Using
 
-Example:
+Run the parser:
 
 ```
 python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py
 python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati
+```
+
+Normalize the AST JSON output by the parser:
+
+```
+npm run normalize isf_imm_bati.json
+chromium "http://jsoneditoronline.org/?url="(curl -F 'sprunge=<-' http://sprunge.us < isf_normalized.json)
 ```
 
 ## Enrich the web API
