@@ -31,7 +31,6 @@ Normalize the AST JSON output by the parser:
 
 ```
 npm run normalize isf_imm_bati.json
-chromium "http://jsoneditoronline.org/?url="(curl -F 'sprunge=<-' http://sprunge.us < isf_normalized.json)
 ```
 
 ## Enrich the web API
