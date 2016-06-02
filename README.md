@@ -39,6 +39,24 @@ Parse and normalize and display both:
 python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee /dev/tty | npm run normalize
 ```
 
+Visualize graph:
+
+```
+# First install dependencies (under Debian):
+sudo apt install xdot
+sudo npm install -g jgf-dot
+
+# Then (under the "fish" shell):
+xdot (npm run ast_to_graph variable1_normalized.json | jgfdot | psub)
+
+# More complex:
+python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_non_bati > isf_imm_non_bati.json
+xdot (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
+
+# To save a PDF:
+dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
+```
+
 ## Enrich the web API
 
 The [OpenFisca web API](https://github.com/openfisca/openfisca-web-api) outputs more information if OpenFisca Parsers
