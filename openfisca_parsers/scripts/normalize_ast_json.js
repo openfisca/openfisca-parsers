@@ -1,57 +1,15 @@
+#!/usr/bin/env node
 
 import * as fs from 'fs'
 import * as process from 'process'
 
-import {normalize, Schema, arrayOf, unionOf} from 'normalizr'
+import {normalize, arrayOf} from 'normalizr'
 
-const arithmeticOperator = new Schema('ArithmeticOperator')
-const number = new Schema('Number')
-const parameter = new Schema('Parameter')
-const parameterAtInstant = new Schema('ParameterAtInstant')
-const period = new Schema('Period')
-const periodOperator = new Schema('PeriodOperator')
-const variable = new Schema('Variable')
-const variableForPeriod = new Schema('VariableForPeriod')
-
-const expression = unionOf({
-  ArithmeticOperator: arithmeticOperator,
-  Number: number,
-  Parameter: parameter,
-  ParameterAtInstant: parameterAtInstant,
-  VariableForPeriod: variableForPeriod
-}, {schemaAttribute: 'type'})
-
-const periodOrPeriodOperator = unionOf({
-  Period: period,
-  PeriodOperator: periodOperator
-}, {schemaAttribute: 'type'})
-
-arithmeticOperator.define({
-  operands: arrayOf(expression)
-})
-
-parameterAtInstant.define({
-  instant: periodOperator,
-  parameter
-})
-
-periodOperator.define({
-  operand: periodOrPeriodOperator
-})
-
-variable.define({
-  formula: expression,
-  output_period: periodOrPeriodOperator
-})
-
-variableForPeriod.define({
-  period: periodOrPeriodOperator,
-  variable
-})
+import {Variable} from './schemas'
 
 function main (fileContent) {
   const node = JSON.parse(fileContent)
-  const schema = Array.isArray(node) ? arrayOf(variable) : variable
+  const schema = Array.isArray(node) ? arrayOf(Variable) : Variable
   const result = normalize(node, schema)
   console.log(JSON.stringify(result, null, 2))
 }
