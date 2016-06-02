@@ -33,6 +33,12 @@ Normalize the AST JSON output by the parser:
 npm run normalize isf_imm_bati.json
 ```
 
+Parse and normalize and display both:
+
+```
+python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee /dev/tty | npm run normalize
+```
+
 ## Enrich the web API
 
 The [OpenFisca web API](https://github.com/openfisca/openfisca-web-api) outputs more information if OpenFisca Parsers
