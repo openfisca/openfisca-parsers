@@ -9,9 +9,17 @@ import UnionSchema from 'normalizr/lib/UnionSchema'
 
 import * as schemas from './schemas'
 
-const titleKeyByEntityType = {
-  Number: 'value',
-  Variable: 'name'
+function renderTitle (entity) {
+  const titleFunctionByEntityType = {
+    ArithmeticOperator: entity => entity.operator,
+    Number: entity => entity.value,
+    Parameter: entity => entity.path.join('.'),
+    PeriodOperator: entity => entity.operator,
+    Variable: entity => entity.name
+  }
+  return titleFunctionByEntityType.hasOwnProperty(entity.type)
+      ? titleFunctionByEntityType[entity.type](entity)
+      : null
 }
 
 function referenceKeys (schema) {
@@ -34,11 +42,15 @@ function main (fileContent) {
     const entityById = entities[type]
     for (let id in entityById) {
       const entity = entityById[id]
-      const titleKey = titleKeyByEntityType[type] || 'id'
-      nodes.push({
-        id,
-        label: `${type} ${entity[titleKey]}`
-      })
+      let label = `${type} ${entity.id}`
+      const title = renderTitle(entity)
+      if (title !== null) {
+        label += '\n' + title
+      }
+      if (entity._stub) {
+        label += '\n(not parsed yet)'
+      }
+      nodes.push({id, label})
       const schema = schemas[type]
       for (let referenceKey of referenceKeys(schema)) {
         const referencedSchema = schema[referenceKey]
@@ -51,14 +63,14 @@ function main (fileContent) {
           })
         } else if (referencedSchema instanceof ArraySchema) {
           const targets = entity[referenceKey]
-          for (let target of targets) {
+          targets.forEach((target, index) => {
             edges.push({
               source: id,
               target: target.id,
               directed: true,
-              label: referenceKey
+              label: `${referenceKey}[${index}]`
             })
-          }
+          })
         } else if (referencedSchema instanceof UnionSchema) {
           if (!entity._stub) {
             edges.push({
