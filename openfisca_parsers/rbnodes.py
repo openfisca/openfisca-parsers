@@ -46,20 +46,20 @@ def find_column_default_value(column_rbnode):
 
 
 def find_dependencies(rbnodes):
-    calculate_rbnodes = rbnodes('atomtrailers', value=is_simulation_calculate_rbnodes)
+    calculate_rbnodes = rbnodes('atomtrailers', value=is_simulation_calculate)
     return list(map(
         lambda rbnode: rbnode.call[0].value.to_python(),
         calculate_rbnodes,
         ))
 
 
-def find_formula_function_rbnode(class_rbnode):
+def find_formula_function(class_rbnode):
     # TODO Match function parameters to be (self, simulation, period)
     return class_rbnode.find('def', name='function')
 
 
 def find_parameters(rbnodes):
-    legislation_at_rbnodes = rbnodes('atomtrailers', value=is_legislation_at_rbnodes)
+    legislation_at_rbnodes = rbnodes('atomtrailers', value=is_legislation_at)
     # TODO Handle periods and parameters spanned over multiple lines, like when using "P".
     return list(map(
         lambda rbnode: '.'.join(map(lambda node1: node1.value, rbnode[3:])),
@@ -71,11 +71,11 @@ def find_variable_class(rbnode, name):
     return rbnode.find('class', inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes), name=name)
 
 
-def is_legislation_at_rbnodes(rbnodes):
+def is_legislation_at(rbnodes):
     # Detects simulation.legislation_at calls.
     return len(rbnodes) >= 2 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'legislation_at'
 
 
-def is_simulation_calculate_rbnodes(rbnodes):
+def is_simulation_calculate(rbnodes):
     # Detects simulation.calculate or simulation.compute calls.
     return len(rbnodes) == 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value in ('calculate', 'compute')

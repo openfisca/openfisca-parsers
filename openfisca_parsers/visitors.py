@@ -38,15 +38,11 @@ ofnodes have this shape: {'type': 'CamelCase'}. The other fields depend on the '
 """
 
 
-from toolz.curried import filter, keyfilter, map, merge, valfilter
+from toolz.curried import keyfilter, map
 from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
-from . import navigators, shortid
-
-
-def is_not_none(value):
-    return value is not None
+from . import ofnodes, rbnodes
 
 
 # Context helpers
@@ -95,45 +91,6 @@ def get_variable_type(column_class_name):
         }[column_class_name]
 
 
-# OpenFisca AST nodes related helpers
-
-
-def find_parameter_by_path_fragments(ofnodes, path_fragments):
-    """
-    Return the ofnode corresponding to a Parameter ofnode of given path_fragments or None if not found.
-    Raises if more than 1 result.
-    """
-    matching_ofnodes = list(filter(
-        lambda ofnode: ofnode['type'] == 'Parameter' and ofnode['path'] == path_fragments,
-        ofnodes,
-        ))
-    assert len(matching_ofnodes) <= 1, (path_fragments, matching_ofnodes)
-    return matching_ofnodes or None
-
-
-def find_variable_by_name(ofnodes, name):
-    """
-    Return the ofnode corresponding to a Variable ofnode of given name or None if not found.
-    Raises if more than 1 result.
-    """
-    matching_ofnodes = list(filter(
-        lambda ofnode: ofnode['type'] == 'Variable' and ofnode['name'] == name,
-        ofnodes,
-        ))
-    assert len(matching_ofnodes) <= 1, (name, matching_ofnodes)
-    return matching_ofnodes[0] if matching_ofnodes else None
-
-
-def make_ofnode(ofnode, rbnode, context, with_rbnodes=False):
-    """Create and return a new ofnode. The ofnode is also added to the list of nodes in the context."""
-    id = shortid.generate()
-    ofnode = merge(ofnode, {'id': id})
-    if with_rbnodes:
-        ofnode = merge(ofnode, {'_rbnode': rbnode})
-    context['ofnodes'].append(ofnode)
-    return valfilter(is_not_none, ofnode)
-
-
 # Generic visitor: rbnode -> ofnode. All specific visitors must call it to concentrate flow (ie log calls).
 
 
@@ -160,7 +117,7 @@ def visit_{}(rbnode, context):
 
 
 def visit_binary_operator(rbnode, context):
-    return make_ofnode({
+    return ofnodes.make_ofnode({
         'type': 'ArithmeticOperator',
         'operator': rbnode.value,
         'operands': [
@@ -185,7 +142,7 @@ def visit_atomtrailers(rbnode, context):
         """Return a new ofnode resulting from applying a rbnode to an ofnode."""
         if ofnode['type'] in ('Period', 'PeriodOperator'):
             if rbnode.value in ('start', 'this_year'):
-                return make_ofnode({
+                return ofnodes.make_ofnode({
                     'type': 'PeriodOperator',
                     'operator': rbnode.value,
                     'operand': ofnode,
@@ -203,33 +160,33 @@ def visit_atomtrailers(rbnode, context):
         else:
             raise NotImplementedError(ofnode)
 
-    if navigators.is_simulation_calculate_rbnodes(rbnode.value):
+    if rbnodes.is_simulation_calculate(rbnode.value):
         variable_name = to_unicode(rbnode.call[0].value.to_python())
         period_pyvariable_name = rbnode.call[1].value.value
-        variable_ofnode = find_variable_by_name(context['ofnodes'], variable_name)
+        variable_ofnode = ofnodes.find_variable_by_name(context['ofnodes'], variable_name)
         if variable_ofnode is None:
             # Create a Variable ofnode stub which will be completed when the real Variable class will be parsed.
-            variable_ofnode = make_ofnode({
+            variable_ofnode = ofnodes.make_ofnode({
                 '_stub': True,
                 'type': 'Variable',
                 'name': variable_name,
                 }, rbnode, context)
-        return make_ofnode({
+        return ofnodes.make_ofnode({
             'type': 'VariableForPeriod',
             'period': context['ofnode_by_pyvariable_name'][period_pyvariable_name],
             'variable': variable_ofnode,
             }, rbnode, context)
-    elif navigators.is_legislation_at_rbnodes(rbnode.value):
+    elif rbnodes.is_legislation_at(rbnode.value):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
         parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes)) or None
-        parameter_ofnode = find_parameter_by_path_fragments(context['ofnodes'], parameter_path_fragments)
+        parameter_ofnode = ofnodes.find_parameter_by_path_fragments(context['ofnodes'], parameter_path_fragments)
         if parameter_ofnode is None:
-            parameter_ofnode = make_ofnode({
+            parameter_ofnode = ofnodes.make_ofnode({
                 'type': 'Parameter',
                 'path': parameter_path_fragments,
                 }, rbnode, context)
-        return make_ofnode({
+        return ofnodes.make_ofnode({
             'type': 'ParameterAtInstant',
             'parameter': parameter_ofnode,
             'instant': period_ofnode,
@@ -257,26 +214,26 @@ def visit_atomtrailers(rbnode, context):
 
 
 def visit_class(rbnode, context):
-    column_rbnode = navigators.find_class_attribute(rbnode, name='column')
+    column_rbnode = rbnodes.find_class_attribute(rbnode, name='column')
     variable_type = get_variable_type(column_rbnode.name.value)
-    default_value = navigators.find_column_default_value(column_rbnode)
+    default_value = rbnodes.find_column_default_value(column_rbnode)
 
-    label_rbnode = navigators.find_class_attribute(rbnode, name='label')
+    label_rbnode = rbnodes.find_class_attribute(rbnode, name='label')
     label = to_unicode(label_rbnode.to_python()) if label_rbnode is not None else None
 
-    entity_rbnode = navigators.find_class_attribute(rbnode, name='entity_class')
+    entity_rbnode = rbnodes.find_class_attribute(rbnode, name='entity_class')
 
-    start_date_rbnode = navigators.find_class_attribute(rbnode, name='start_date')
+    start_date_rbnode = rbnodes.find_class_attribute(rbnode, name='start_date')
     start_date = '-'.join(map(lambda rbnode: rbnode.value.value, start_date_rbnode.call.filtered())) \
         if start_date_rbnode is not None \
         else None
 
-    stop_date_rbnode = navigators.find_class_attribute(rbnode, name='stop_date')
+    stop_date_rbnode = rbnodes.find_class_attribute(rbnode, name='stop_date')
     stop_date = '-'.join(map(lambda rbnode: rbnode.value.value, stop_date_rbnode.call.filtered())) \
         if stop_date_rbnode is not None \
         else None
 
-    def_rbnode = navigators.find_formula_function_rbnode(rbnode)
+    def_rbnode = rbnodes.find_formula_function(rbnode)
     formula_dict = {}
     if def_rbnode is not None:
         formula_dict = visit_rbnode(def_rbnode, context)
@@ -297,9 +254,9 @@ def visit_class(rbnode, context):
         'variable_type': variable_type,
         }
 
-    variable_ofnode = find_variable_by_name(context['ofnodes'], variable_name)
+    variable_ofnode = ofnodes.find_variable_by_name(context['ofnodes'], variable_name)
     if variable_ofnode is None:
-        return make_ofnode(ofnode_dict, rbnode, context)
+        return ofnodes.make_ofnode(ofnode_dict, rbnode, context)
     else:
         # variable_ofnode is a stub which was created by visit_atomtrailers
         assert '_stub' in variable_ofnode, variable_ofnode
@@ -309,7 +266,7 @@ def visit_class(rbnode, context):
 
 
 def visit_comparison(rbnode, context):
-    return make_ofnode({
+    return ofnodes.make_ofnode({
         'type': 'ArithmeticOperator',
         'operator': rbnode.value.first,
         'operands': [
@@ -324,7 +281,7 @@ def visit_def(rbnode, context):
     docstring_rbnode = body_rbnodes.find(('string', 'unicode_string'), recursive=False)
     docstring = to_unicode(docstring_rbnode.to_python().strip()) if docstring_rbnode is not None else None
     context['ofnode_by_pyvariable_name'] = {
-        'period': make_ofnode({'type': 'Period'}, rbnode, context)
+        'period': ofnodes.make_ofnode({'type': 'Period'}, rbnode, context)
         }
     output_period_ofnode = formula_ofnode = None
     for index, rbnode in enumerate(body_rbnodes):
@@ -348,7 +305,7 @@ def visit_def(rbnode, context):
 
 
 def visit_int(rbnode, context):
-    return make_ofnode({
+    return ofnodes.make_ofnode({
         'type': 'Number',
         'value': rbnode.to_python(),
         }, rbnode, context)
@@ -363,7 +320,7 @@ def visit_name(rbnode, context):
         # name is a function, imported or builtin.
         # Just return a stub of Operator ofnode, which will be completed by visit_atomtrailers
         # who has access to CallArguments rbnodes.
-        return make_ofnode({
+        return ofnodes.make_ofnode({
             '_stub': True,
             'type': 'ArithmeticOperator',
             'operator': name,

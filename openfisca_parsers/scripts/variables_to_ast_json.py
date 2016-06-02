@@ -34,7 +34,7 @@ import sys
 
 from redbaron import RedBaron
 
-from openfisca_parsers import navigators, visitors
+from openfisca_parsers import rbnodes, visitors
 
 
 # Helpers
@@ -60,10 +60,10 @@ def parse_string(source_code, variable_name=None):
     red = RedBaron(source_code)
     context = visitors.make_initial_context()
     if variable_name is None:
-        variable_class_rbnodes = navigators.find_all_variable_classes(red)
+        variable_class_rbnodes = rbnodes.find_all_variable_classes(red)
         ofnodes = list(iter_ofnodes(variable_class_rbnodes))
     else:
-        variable_class_rbnode = navigators.find_variable_class(red, variable_name)
+        variable_class_rbnode = rbnodes.find_variable_class(red, variable_name)
         ofnodes = [visitors.visit_rbnode(variable_class_rbnode, context)]
     return ofnodes
 
