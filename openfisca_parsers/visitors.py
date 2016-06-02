@@ -91,16 +91,17 @@ def get_variable_type(column_class_name):
         }[column_class_name]
 
 
-# Generic visitor: rbnode -> ofnode. All specific visitors must call it to concentrate flow (ie log calls).
+# Generic visitor: rbnode, context -> ofnode | dict
+# All specific visitors must call it to concentrate flow (ie log calls).
 
 
 def visit_rbnode(rbnode, context):
     visitors = keyfilter(lambda key: key.startswith('visit_'), globals())
     visitor = visitors.get('visit_' + rbnode.type)
     if visitor is None:
-        raise NotImplementedError(u'Visitor not declared for type="{type}", source="{source}"\n{stub}'.format(
+        raise NotImplementedError(u'Visitor not declared for type="{type}", source="{source}"\n{template}'.format(
             source=rbnode,
-            stub=u'''\
+            template=u'''\
 def visit_{}(rbnode, context):
     rbnode.help()
     import ipdb; ipdb.set_trace()
@@ -165,7 +166,7 @@ def visit_atomtrailers(rbnode, context):
         period_pyvariable_name = rbnode.call[1].value.value
         variable_ofnode = ofnodes.find_variable_by_name(context['ofnodes'], variable_name)
         if variable_ofnode is None:
-            # Create a Variable ofnode stub which will be completed when the real Variable class will be parsed.
+            # Create a stub which will be completed when the real Variable class will be parsed.
             variable_ofnode = ofnodes.make_ofnode({
                 '_stub': True,
                 'type': 'Variable',
@@ -198,19 +199,23 @@ def visit_atomtrailers(rbnode, context):
         assert first_rbnode.type == 'name', first_rbnode
         name_ofnode = visit_rbnode(first_rbnode, context)
         if first_rbnode.value in context['ofnode_by_pyvariable_name']:
+            # first_rbnode is a local variable of the function.
             other_rbnodes = rbnode.value[1:]
             ofnode = reduce(apply_rbnode_to_ofnode, other_rbnodes, name_ofnode)
             return ofnode
         else:
+            # first_rbnode is a function, imported or builtin.
+            # TODO Could be other things like a Python module.
             call_arguments_rbnodes = rbnode.call.value
-            # visit_name returned a stub.
-            ofnode = name_ofnode
-            ofnode['operands'] = [
+            # name_ofnode is a stub which was created by visit_name.
+            assert '_stub' in name_ofnode, name_ofnode
+            assert name_ofnode['type'] == 'ArithmeticOperator', name_ofnode
+            name_ofnode['operands'] = [
                 visit_rbnode(call_argument_rbnode.value, context)
                 for call_argument_rbnode in call_arguments_rbnodes
                 ]
-            del ofnode['_stub']
-            return ofnode
+            del name_ofnode['_stub']
+            return name_ofnode
 
 
 def visit_class(rbnode, context):
@@ -258,7 +263,7 @@ def visit_class(rbnode, context):
     if variable_ofnode is None:
         return ofnodes.make_ofnode(ofnode_dict, rbnode, context)
     else:
-        # variable_ofnode is a stub which was created by visit_atomtrailers
+        # variable_ofnode is a stub which was created by visit_atomtrailers.
         assert '_stub' in variable_ofnode, variable_ofnode
         variable_ofnode.update(ofnode_dict)
         del variable_ofnode['_stub']
@@ -318,8 +323,7 @@ def visit_name(rbnode, context):
         return context['ofnode_by_pyvariable_name'][name]
     else:
         # name is a function, imported or builtin.
-        # Just return a stub of Operator ofnode, which will be completed by visit_atomtrailers
-        # who has access to CallArguments rbnodes.
+        # Create a stub which will be completed by visit_atomtrailers when parsing function call arguments.
         return ofnodes.make_ofnode({
             '_stub': True,
             'type': 'ArithmeticOperator',
