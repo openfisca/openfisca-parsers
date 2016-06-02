@@ -13,11 +13,7 @@ const periodOperator = new Schema('PeriodOperator')
 const variable = new Schema('Variable')
 const variableForPeriod = new Schema('VariableForPeriod')
 
-const formula = unionOf({
-  ArithmeticOperator: arithmeticOperator
-}, {schemaAttribute: 'type'})
-
-const operand = unionOf({
+const expression = unionOf({
   ArithmeticOperator: arithmeticOperator,
   Number: number,
   Parameter: parameter,
@@ -25,8 +21,13 @@ const operand = unionOf({
   VariableForPeriod: variableForPeriod
 }, {schemaAttribute: 'type'})
 
+const periodOrPeriodOperator = unionOf({
+  Period: period,
+  PeriodOperator: periodOperator
+}, {schemaAttribute: 'type'})
+
 arithmeticOperator.define({
-  operands: arrayOf(operand)
+  operands: arrayOf(expression)
 })
 
 parameterAtInstant.define({
@@ -35,21 +36,23 @@ parameterAtInstant.define({
 })
 
 periodOperator.define({
-  operand: period
+  operand: periodOrPeriodOperator
 })
 
 variable.define({
-  formula,
-  output_period: period
+  formula: expression,
+  output_period: periodOrPeriodOperator
 })
 
 variableForPeriod.define({
+  period: periodOrPeriodOperator,
   variable
 })
 
 function main (fileContent) {
   const node = JSON.parse(fileContent)
-  const result = normalize(node, arrayOf(variable))
+  const schema = Array.isArray(node) ? arrayOf(variable) : variable
+  const result = normalize(node, schema)
   console.log(JSON.stringify(result, null, 2))
 }
 
