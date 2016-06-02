@@ -26,9 +26,7 @@
 """Functions to navigate in OpenFisca AST nodes."""
 
 
-from toolz.curried import filter, merge, valfilter
-
-from . import shortid
+from toolz.curried import assoc, filter, valfilter
 
 
 def find_parameter_by_path_fragments(ofnodes, path_fragments):
@@ -57,11 +55,20 @@ def find_variable_by_name(ofnodes, name):
     return matching_ofnodes[0] if matching_ofnodes else None
 
 
-def make_ofnode(ofnode, rbnode, context, with_rbnodes=False):
-    """Create and return a new ofnode. The ofnode is also added to the list of nodes in the context."""
-    id = shortid.generate()
-    ofnode = merge(ofnode, {'id': id})
-    if with_rbnodes:
-        ofnode = merge(ofnode, {'_rbnode': rbnode})
-    context['ofnodes'].append(ofnode)
+def make_ofnode(items, rbnode, context, with_rbnode=False):
+    """
+    Create and return a new ofnode.
+    with_rbnode: if True, reference the rbnode from the '_rbnode' key in the ofnode.
+    """
+    id = context['generate_shortid']()
+    ofnode = assoc(items, 'id', id)
+    if with_rbnode:
+        ofnode = assoc(ofnode, '_rbnode', rbnode)
     return valfilter(lambda value: value is not None, ofnode)
+
+
+def update_ofnode_stub(ofnode, merge):
+    assert '_stub' in ofnode, ofnode
+    ofnode.update(valfilter(lambda value: value is not None, merge))
+    del ofnode['_stub']
+    return ofnode

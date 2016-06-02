@@ -23,14 +23,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-"""Short ID generation. A short ID is simpler than an UUID since it is just a consecutive unique number."""
+"""Functions to manage context used in RedBaron nodes visitors."""
 
 
-next_short_id = 0
+LOCAL = 'ofnode_by_local_pyvariable_name'
+VARIABLES = 'ofnode_by_variable_name'
 
 
-def generate():
-    global next_short_id
-    result = next_short_id
-    next_short_id += 1
-    return result
+class ShortIdGenerator(object):
+    next_shortid = 0
+
+    def generate(self):
+        result = self.next_shortid
+        self.next_shortid += 1
+        return result
+
+
+def create():
+    shortid_generator = ShortIdGenerator()
+    return {
+        'generate_shortid': shortid_generator.generate,
+        VARIABLES: [],
+        }

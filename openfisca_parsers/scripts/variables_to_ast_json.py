@@ -34,7 +34,7 @@ import sys
 
 from redbaron import RedBaron
 
-from openfisca_parsers import rbnodes, visitors
+from openfisca_parsers import contexts, rbnodes, visitors
 
 
 # Helpers
@@ -53,12 +53,12 @@ def parse_string(source_code, variable_name=None):
             variable_name = rbnode.name
             try:
                 ofnode = visitors.visit_rbnode(rbnode, context)
-            except NotImplementedError as exc:
+            except (AssertionError, NotImplementedError) as exc:
                 print u'Error parsing OpenFisca Variable "{}": {}'.format(variable_name, exc)
             yield ofnode
 
     red = RedBaron(source_code)
-    context = visitors.make_initial_context()
+    context = contexts.create()
     if variable_name is None:
         variable_class_rbnodes = rbnodes.find_all_variable_classes(red)
         ofnodes = list(iter_ofnodes(variable_class_rbnodes))
