@@ -58,12 +58,17 @@ def parse_string(source_code, on_parse_error='show', variable_names=None):
         try:
             visitors.visit_rbnode(variable_class_rbnode, context)
         except (AssertionError, NotImplementedError) as exc:
-            if on_parse_error == 'abort':
-                raise
-            elif on_parse_error == 'show':
-                log.exception(u'Error parsing OpenFisca Variable "{}": {}'.format(variable_name, exc))
+            if on_parse_error == 'hide':
+                pass
             else:
-                assert on_parse_error == 'hide', on_parse_error
+                message = u'Error parsing OpenFisca Variable "{}"'.format(variable_name)
+                if on_parse_error == 'abort':
+                    log.error(message)
+                    raise
+                else:
+                    assert on_parse_error == 'show', on_parse_error
+                    # log.exception(textwrap.indent(u'{}: {}'.format(message, exc)), '    ')  # Python 3
+                    log.exception(u'{}: {}'.format(message, exc))
     return context
 
 
