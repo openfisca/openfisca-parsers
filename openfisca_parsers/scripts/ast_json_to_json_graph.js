@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import * as fs from 'fs'
 import * as process from 'process'
 
 import ArraySchema from 'normalizr/lib/IterableSchema'
 import EntitySchema from 'normalizr/lib/EntitySchema'
 import UnionSchema from 'normalizr/lib/UnionSchema'
+import read from 'read-file-stdin'
 
 import * as schemas from './schemas'
 
@@ -134,23 +134,7 @@ function main (fileContent) {
   console.log(JSON.stringify(result, null, 2))
 }
 
-if (process.argv.length < 3 || !process.argv[2]) {
-  let fileContent = ''
-  process.stdin.setEncoding('utf8')
-  process.stdin.on('readable', () => {
-    var chunk = process.stdin.read()
-    if (chunk !== null) {
-      fileContent += chunk
-    }
-  })
-  process.stdin.on('end', () => {
-    main(fileContent)
-  })
-} else {
-  if (process.argv.length > 3) {
-    throw new Error('Provide a single file path')
-  }
-  const filePath = process.argv[2]
-  const fileContent = fs.readFileSync(filePath)
-  main(fileContent)
-}
+read(process.argv[2], (err, buffer) => {
+  if (err) throw err
+  main(buffer)
+})
