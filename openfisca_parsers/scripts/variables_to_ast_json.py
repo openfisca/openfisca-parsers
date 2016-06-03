@@ -37,53 +37,55 @@ from redbaron import RedBaron
 from openfisca_parsers import contexts, rbnodes, visitors
 
 
+log = logging.getLogger(__name__)
+
 # Helpers
 
 
-def show_ofnodes(ofnodes):
+def show_json(ofnodes):
     print(json.dumps(ofnodes, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
 
 
 # Parsing functions
 
 
-def parse_string(source_code, variable_name=None):
-    def iter_ofnodes(rbnodes):
-        for rbnode in rbnodes:
-            variable_name = rbnode.name
-            try:
-                ofnode = visitors.visit_rbnode(rbnode, context)
-            except (AssertionError, NotImplementedError) as exc:
-                print u'Error parsing OpenFisca Variable "{}": {}'.format(variable_name, exc)
-            yield ofnode
-
+def parse_string(source_code, on_parse_error='show', variable_names=None):
     red = RedBaron(source_code)
     context = contexts.create()
-    if variable_name is None:
-        variable_class_rbnodes = rbnodes.find_all_variable_classes(red)
-        ofnodes = list(iter_ofnodes(variable_class_rbnodes))
-    else:
-        variable_class_rbnode = rbnodes.find_variable_class(red, variable_name)
-        ofnodes = [visitors.visit_rbnode(variable_class_rbnode, context)]
-    return ofnodes
+    variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
+    for variable_class_rbnode in variable_class_rbnodes:
+        variable_name = variable_class_rbnode.name
+        try:
+            visitors.visit_rbnode(variable_class_rbnode, context)
+        except (AssertionError, NotImplementedError) as exc:
+            if on_parse_error == 'abort':
+                raise
+            elif on_parse_error == 'show':
+                log.exception(u'Error parsing OpenFisca Variable "{}": {}'.format(variable_name, exc))
+            else:
+                assert on_parse_error == 'hide', on_parse_error
+    return context
 
 
 # Main function for script
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('source_file_path', help=u'Path of the Python source file to parse')
-    parser.add_argument('--variable', dest='variable_name', help=u'Parse only this simulation Variable')
+    parser.add_argument('--on-parse-error', choices=['hide', 'abort', 'show'], default='show',
+                        help=u'What to do in case of error while parsing a Variable')
+    parser.add_argument('--variable', dest='variable_names', metavar='VARIABLE',
+                        nargs='+', help=u'Parse only this simulation Variable(s)')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, stream=sys.stdout)
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
     with open(args.source_file_path) as source_file:
         source_code = source_file.read()
 
-    ofnodes = parse_string(source_code, args.variable_name)
-    show_ofnodes(ofnodes)
+    context = parse_string(source_code, on_parse_error=args.on_parse_error, variable_names=args.variable_names)
+    show_json(context[contexts.VARIABLES])
 
     return 0
 

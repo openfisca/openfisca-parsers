@@ -26,7 +26,7 @@
 """Functions to manage context used in RedBaron nodes visitors."""
 
 
-LOCAL = 'ofnode_by_local_pyvariable_name'
+CURRENT_LOCAL = 'ofnode_by_local_pyvariable_name'
 VARIABLES = 'ofnode_by_variable_name'
 
 
@@ -43,5 +43,5 @@ def create():
     shortid_generator = ShortIdGenerator()
     return {
         'generate_shortid': shortid_generator.generate,
-        VARIABLES: [],
+        VARIABLES: {},
         }

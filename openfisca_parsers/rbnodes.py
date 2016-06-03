@@ -30,8 +30,12 @@ from toolz.curried import map
 from toolz.curried.operator import attrgetter
 
 
-def find_all_variable_classes(rbnode):
-    return rbnode('class', inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes))
+def find_all_variable_classes(rbnode, names=None):
+    return rbnode(
+        'class',
+        inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes),
+        name=lambda value: value in names if names is not None else True,  # True disables the name filter
+        )
 
 
 def find_class_attribute(class_rbnode, name):
@@ -65,10 +69,6 @@ def find_parameters(rbnodes):
         lambda rbnode: '.'.join(map(lambda node1: node1.value, rbnode[3:])),
         legislation_at_rbnodes,
         ))
-
-
-def find_variable_class(rbnode, name):
-    return rbnode.find('class', inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes), name=name)
 
 
 def is_legislation_at(rbnodes):

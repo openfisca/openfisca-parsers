@@ -43,7 +43,7 @@ from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import ofnodes as ofn, rbnodes as rbn
-from .contexts import LOCAL, VARIABLES
+from .contexts import CURRENT_LOCAL, VARIABLES
 
 
 # RedBaron nodes helpers
@@ -96,12 +96,14 @@ def visit_rbnode(rbnode, context):
         raise NotImplementedError(u'Visitor not declared for type="{type}", source="{source}"\n{template}'.format(
             source=rbnode,
             template=u'''\
+=============================================
 def visit_{}(rbnode, context):
     rbnode.help()
     import ipdb; ipdb.set_trace()
     return make_ofnode({{
         'type': '',
         }}, rbnode, context)
+=============================================
 '''.format(rbnode.type),
             type=rbnode.type,
             ))
@@ -162,7 +164,7 @@ def visit_atomtrailers(rbnode, context):
     if rbn.is_simulation_calculate(rbnode.value):
         variable_name = to_unicode(rbnode.call[0].value.to_python())
         period_pyvariable_name = rbnode.call[1].value.value
-        variable_ofnode = ofn.find_variable_by_name(context[VARIABLES], variable_name)
+        variable_ofnode = context[VARIABLES].get(variable_name)
         if variable_ofnode is None:
             # Create a stub which will be completed when the real Variable class will be parsed.
             variable_ofnode = ofn.make_ofnode({
@@ -172,14 +174,14 @@ def visit_atomtrailers(rbnode, context):
                 }, rbnode, context)
         return ofn.make_ofnode({
             'type': 'VariableForPeriod',
-            'period': context[LOCAL][period_pyvariable_name],
+            'period': context[CURRENT_LOCAL][period_pyvariable_name],
             'variable': variable_ofnode,
             }, rbnode, context)
     elif rbn.is_legislation_at(rbnode.value):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
         parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes)) or None
-        parameter_ofnode = ofn.find_parameter_by_path_fragments(context[VARIABLES], parameter_path_fragments)
+        parameter_ofnode = ofn.find_parameter_by_path_fragments(context[VARIABLES].values(), parameter_path_fragments)
         if parameter_ofnode is None:
             parameter_ofnode = ofn.make_ofnode({
                 'type': 'Parameter',
@@ -195,7 +197,7 @@ def visit_atomtrailers(rbnode, context):
         first_rbnode = rbnode.value[0]
         assert first_rbnode.type == 'name', first_rbnode
         name_ofnode = visit_rbnode(first_rbnode, context)
-        if first_rbnode.value in context[LOCAL]:
+        if first_rbnode.value in context[CURRENT_LOCAL]:
             # first_rbnode is a local variable of the function.
             other_rbnodes = rbnode.value[1:]
             ofnode = reduce(apply_rbnode_to_ofnode, other_rbnodes, name_ofnode)
@@ -219,6 +221,8 @@ def visit_atomtrailers(rbnode, context):
 
 
 def visit_class(rbnode, context):
+    variable_name = rbnode.name
+
     column_rbnode = rbn.find_class_attribute(rbnode, name='column')
     variable_type = get_variable_type(column_rbnode.name.value)
     default_value = rbn.find_column_default_value(column_rbnode)
@@ -243,8 +247,6 @@ def visit_class(rbnode, context):
     if def_rbnode is not None:
         formula_dict = visit_rbnode(def_rbnode, context)
 
-    variable_name = rbnode.name
-
     ofnode_dict = {
         'type': 'Variable',
         'default_value': default_value,
@@ -259,15 +261,18 @@ def visit_class(rbnode, context):
         'variable_type': variable_type,
         }
 
-    variable_ofnode = ofn.find_variable_by_name(context[VARIABLES], variable_name)
+    variable_ofnode = context[VARIABLES].get(variable_name)
     if variable_ofnode is None:
         variable_ofnode = ofn.make_ofnode(ofnode_dict, rbnode, context)
-        context[VARIABLES].append(variable_ofnode)
-        return variable_ofnode
+        context[VARIABLES][variable_name] = variable_ofnode
     else:
         # variable_ofnode is a stub which was created by visit_atomtrailers.
         ofn.update_ofnode_stub(variable_ofnode, merge=ofnode_dict)
-        return variable_ofnode
+    if CURRENT_LOCAL in context:
+        context[VARIABLES][variable_name]['_pyvariables'] = context[CURRENT_LOCAL]
+        del context[CURRENT_LOCAL]
+
+    return variable_ofnode
 
 
 def visit_comparison(rbnode, context):
@@ -285,7 +290,7 @@ def visit_def(rbnode, context):
     body_rbnodes = rbnode.value.filter(is_significant_rbnode)
     docstring_rbnode = body_rbnodes.find(('string', 'unicode_string'), recursive=False)
     docstring = to_unicode(docstring_rbnode.to_python().strip()) if docstring_rbnode is not None else None
-    context[LOCAL] = {
+    context[CURRENT_LOCAL] = {
         'period': ofn.make_ofnode({'type': 'Period'}, rbnode, context)
         }
     output_period_ofnode = formula_ofnode = None
@@ -294,20 +299,21 @@ def visit_def(rbnode, context):
             continue
         elif rbnode.type == 'assignment':
             ofnode = visit_rbnode(rbnode, context)
-            context[LOCAL][rbnode.target.value] = ofnode
+            context[CURRENT_LOCAL][rbnode.target.value] = ofnode
         elif rbnode.type == 'return':
             # TODO Ensure there is no forgotten nodes after return.
             # assert index == len(body_rbnodes) - 1, u'return is not the last function statement'
             output_period_ofnode, formula_ofnode = visit_rbnode(rbnode.value, context)
         else:
             raise NotImplementedError((rbnode.type, rbnode))
-    del context[LOCAL]
-    # Just return extracted data, not an ofnode.
-    return {
+    # Just return extracted data (not an ofnode).
+    formula_dict = {
+        CURRENT_LOCAL: context[CURRENT_LOCAL],
         'docstring': docstring,
         'formula_ofnode': formula_ofnode,
         'output_period_ofnode': output_period_ofnode,
         }
+    return formula_dict
 
 
 def visit_int(rbnode, context):
@@ -319,9 +325,9 @@ def visit_int(rbnode, context):
 
 def visit_name(rbnode, context):
     name = rbnode.value
-    if name in context[LOCAL]:
+    if name in context[CURRENT_LOCAL]:
         # name is a local variable of the function.
-        return context[LOCAL][name]
+        return context[CURRENT_LOCAL][name]
     else:
         # name is a function, imported or builtin.
         # TODO name could be another thing, like a Python module.

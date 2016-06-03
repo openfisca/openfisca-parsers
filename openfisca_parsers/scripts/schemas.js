@@ -1,4 +1,4 @@
-import {Schema, arrayOf, unionOf} from 'normalizr'
+import {Schema, arrayOf, unionOf, valuesOf} from 'normalizr'
 
 export const ArithmeticOperator = new Schema('ArithmeticOperator')
 export const Number = new Schema('Number')
@@ -22,6 +22,16 @@ export const periodOrPeriodOperator = unionOf({
   PeriodOperator
 }, {schemaAttribute: 'type'})
 
+const pyvariable = unionOf({
+  ArithmeticOperator,
+  Number,
+  Parameter,
+  ParameterAtInstant,
+  Period,
+  PeriodOperator,
+  VariableForPeriod
+}, {schemaAttribute: 'type'})
+
 ArithmeticOperator.define({
   operands: arrayOf(expression)
 })
@@ -37,7 +47,8 @@ PeriodOperator.define({
 
 Variable.define({
   formula: expression,
-  output_period: periodOrPeriodOperator
+  output_period: periodOrPeriodOperator,
+  _pyvariables: valuesOf(pyvariable)
 })
 
 VariableForPeriod.define({

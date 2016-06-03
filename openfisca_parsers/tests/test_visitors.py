@@ -27,7 +27,7 @@ from nose.tools import assert_equal, assert_not_equal, assert_not_in
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
-from openfisca_parsers.scripts.variables_to_ast_json import show_ofnodes  # noqa
+from openfisca_parsers.scripts.variables_to_ast_json import show_json
 
 
 def test_legislation_at():
@@ -39,7 +39,7 @@ def function(self, simulation, period):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_ofnodes(formula_dict)
+    show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
     assert_not_in('path', formula_dict['formula_ofnode']['parameter'])
 
@@ -53,7 +53,7 @@ def function(self, simulation, period):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_ofnodes(formula_dict)
+    show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
     assert_equal(formula_dict['formula_ofnode']['parameter']['path'], ['aaa', 'bbb'])
 
@@ -70,7 +70,7 @@ def function(self, simulation, period):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_ofnodes(formula_dict)
+    show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ArithmeticOperator')
     left_ofnode, right_ofnode = formula_dict['formula_ofnode']['operands']
     assert_equal(left_ofnode['type'], 'ParameterAtInstant')
@@ -92,7 +92,7 @@ def function(self, simulation, period):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_ofnodes(formula_dict)
+    show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'Number')
     assert_equal(formula_dict['formula_ofnode']['value'], 0)
     assert_equal(formula_dict['output_period_ofnode']['type'], 'PeriodOperator')
@@ -111,7 +111,7 @@ class A(Variable):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_ofnodes(ofnode)
+    show_json(ofnode)
     assert_equal(ofnode['formula']['type'], 'Number')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'Period')

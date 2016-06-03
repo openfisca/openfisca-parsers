@@ -42,19 +42,6 @@ def find_parameter_by_path_fragments(ofnodes, path_fragments):
     return matching_ofnodes or None
 
 
-def find_variable_by_name(ofnodes, name):
-    """
-    Return the ofnode corresponding to a Variable ofnode of given name or None if not found.
-    Raises if more than 1 result.
-    """
-    matching_ofnodes = list(filter(
-        lambda ofnode: ofnode['type'] == 'Variable' and ofnode['name'] == name,
-        ofnodes,
-        ))
-    assert len(matching_ofnodes) <= 1, (name, matching_ofnodes)
-    return matching_ofnodes[0] if matching_ofnodes else None
-
-
 def make_ofnode(items, rbnode, context, with_rbnode=False):
     """
     Create and return a new ofnode.

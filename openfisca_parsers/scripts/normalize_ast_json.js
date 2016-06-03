@@ -3,13 +3,13 @@
 import * as fs from 'fs'
 import * as process from 'process'
 
-import {normalize, arrayOf} from 'normalizr'
+import {normalize, valuesOf} from 'normalizr'
 
 import {Variable} from './schemas'
 
 function main (fileContent) {
   const node = JSON.parse(fileContent)
-  const schema = Array.isArray(node) ? arrayOf(Variable) : Variable
+  const schema = node.type ? Variable : valuesOf(Variable)
   const result = normalize(node, schema)
   console.log(JSON.stringify(result, null, 2))
 }

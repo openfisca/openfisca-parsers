@@ -24,7 +24,15 @@ Run the parser:
 
 ```
 python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py
+
+# Hide parse errors
+python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --on-parse-error=hide
+
+# Limit to a variable name
 python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati
+
+# Limit to many variable names
+python openfisca_parsers/scripts/variables_to_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati isf_imm_non_bati
 ```
 
 Normalize the AST JSON output by the parser:
@@ -52,9 +60,13 @@ xdot (npm run ast_to_graph variable1_normalized.json | jgfdot | psub)
 # More complex:
 python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_non_bati > isf_imm_non_bati.json
 xdot (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
+# For big files:
+xdot (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jq -c . | jgfdot | psub)
 
 # To save a PDF:
 dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
+
+
 ```
 
 ## Enrich the web API
