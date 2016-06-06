@@ -29,22 +29,9 @@
 from toolz.curried import assoc, filter, valfilter
 
 
-def find_parameter_by_path_fragments(ofnodes, path_fragments):
-    """
-    Return the ofnode corresponding to a Parameter ofnode of given path_fragments or None if not found.
-    Raises if more than 1 result.
-    """
-    matching_ofnodes = list(filter(
-        lambda ofnode: ofnode['type'] == 'Parameter' and ofnode['path'] == path_fragments,
-        ofnodes,
-        ))
-    assert len(matching_ofnodes) <= 1, (path_fragments, matching_ofnodes)
-    return matching_ofnodes or None
-
-
 def make_ofnode(items, rbnode, context, with_rbnode=False):
     """
-    Create and return a new ofnode.
+    Create and return a new ofnode with a generated id.
     with_rbnode: if True, reference the rbnode from the '_rbnode' key in the ofnode.
     """
     id = context['generate_shortid']()

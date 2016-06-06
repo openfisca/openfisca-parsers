@@ -43,7 +43,7 @@ from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import ofnodes as ofn, rbnodes as rbn
-from .contexts import CURRENT_LOCAL, VARIABLES
+from .contexts import CURRENT_LOCAL, PARAMETERS, VARIABLES
 
 
 # RedBaron nodes helpers
@@ -150,11 +150,13 @@ def visit_atomtrailers(rbnode, context):
                 raise NotImplementedError(rbnode)
         elif ofnode['type'] == 'Parameter':
             parameter_path_fragment = rbnode.value
-            return ofn.make_ofnode(
-                assoc(ofnode, 'path', list(concatv(ofnode['path'], [parameter_path_fragment]))),
-                rbnode,
-                context,
-                )
+            parameter_path_fragments = list(concatv(ofnode['path'], [parameter_path_fragment]))
+            parameter_path = '.'.join(parameter_path_fragments)
+            parameter_ofnode = context[PARAMETERS].get(parameter_path)
+            if parameter_ofnode is None:
+                parameter_ofnode = ofn.make_ofnode(assoc(ofnode, 'path', parameter_path_fragments), rbnode, context)
+                context[PARAMETERS][parameter_path] = parameter_ofnode
+            return parameter_ofnode
         elif ofnode['type'] == 'ParameterAtInstant':
             new_parameter_ofnode = apply_rbnode_to_ofnode(ofnode['parameter'], rbnode)
             return ofn.make_ofnode(assoc(ofnode, 'parameter', new_parameter_ofnode), rbnode, context)
@@ -181,12 +183,14 @@ def visit_atomtrailers(rbnode, context):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
         parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes)) or None
-        parameter_ofnode = ofn.find_parameter_by_path_fragments(context[VARIABLES].values(), parameter_path_fragments)
+        parameter_path = '.'.join(parameter_path_fragments)
+        parameter_ofnode = context[PARAMETERS].get(parameter_path)
         if parameter_ofnode is None:
             parameter_ofnode = ofn.make_ofnode({
                 'type': 'Parameter',
                 'path': parameter_path_fragments,
                 }, rbnode, context)
+            context[PARAMETERS][parameter_path] = parameter_ofnode
         return ofn.make_ofnode({
             'type': 'ParameterAtInstant',
             'parameter': parameter_ofnode,

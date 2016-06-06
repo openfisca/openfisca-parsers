@@ -27,6 +27,7 @@
 
 
 CURRENT_LOCAL = 'ofnode_by_local_pyvariable_name'
+PARAMETERS = 'ofnode_by_parameter_path'
 VARIABLES = 'ofnode_by_variable_name'
 
 
@@ -43,5 +44,6 @@ def create():
     shortid_generator = ShortIdGenerator()
     return {
         'generate_shortid': shortid_generator.generate,
+        PARAMETERS: {},
         VARIABLES: {},
         }
