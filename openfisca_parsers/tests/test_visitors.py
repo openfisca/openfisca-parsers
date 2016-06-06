@@ -115,7 +115,7 @@ def function(self, simulation, period):
 
 def test_variable_class():
     source_code = '''\
-class A(Variable):
+class var1(Variable):
     column = FloatCol
     entity_class = Familles
 
@@ -126,6 +126,7 @@ class A(Variable):
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
+    assert_equal(ofnode['name'], 'var1')
     assert_equal(ofnode['formula']['type'], 'Number')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'Period')
