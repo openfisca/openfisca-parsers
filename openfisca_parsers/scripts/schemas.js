@@ -1,4 +1,4 @@
-import {Schema, arrayOf, unionOf, valuesOf} from 'normalizr'
+import {Schema, arrayOf, unionOf as normalizrUnionOf, valuesOf} from 'normalizr'
 
 export const ArithmeticOperator = new Schema('ArithmeticOperator')
 export const Number = new Schema('Number')
@@ -10,6 +10,10 @@ export const Variable = new Schema('Variable')
 export const VariableForPeriod = new Schema('VariableForPeriod')
 export const VariableForRole = new Schema('VariableForRole')
 
+function unionOf (obj) {
+  return normalizrUnionOf(obj, {schemaAttribute: 'type'})
+}
+
 export const expression = unionOf({
   ArithmeticOperator,
   Number,
@@ -17,12 +21,12 @@ export const expression = unionOf({
   ParameterAtInstant,
   VariableForPeriod,
   VariableForRole
-}, {schemaAttribute: 'type'})
+})
 
 export const periodOrPeriodOperator = unionOf({
   Period,
   PeriodOperator
-}, {schemaAttribute: 'type'})
+})
 
 const pyvariable = unionOf({
   ArithmeticOperator,
@@ -33,7 +37,7 @@ const pyvariable = unionOf({
   PeriodOperator,
   VariableForPeriod,
   VariableForRole
-}, {schemaAttribute: 'type'})
+})
 
 ArithmeticOperator.define({
   operands: arrayOf(expression)
@@ -56,9 +60,9 @@ Variable.define({
 
 VariableForPeriod.define({
   period: periodOrPeriodOperator,
-  variable: unionOf({Variable, VariableForRole}, {schemaAttribute: 'type'})
+  variable: unionOf({Variable, VariableForRole})
 })
 
 VariableForRole.define({
-  variable: unionOf({Variable, VariableForPeriod}, {schemaAttribute: 'type'})
+  variable: unionOf({Variable, VariableForPeriod})
 })
