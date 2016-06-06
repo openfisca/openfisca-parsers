@@ -10,22 +10,23 @@ import read from 'read-file-stdin'
 import * as schemas from './schemas'
 
 const attributesByEntityType = {
+  ArithmeticOperator: {shape: 'circle'},
   Parameter: {shape: 'box', style: 'filled'},
   Number: {shape: 'oval'},
   Variable: {shape: 'oval', style: 'filled'}
 }
 
-function renderTitle (entity) {
-  const titleFunctionByEntityType = {
+function renderLabel (entity) {
+  const functionByEntityType = {
     ArithmeticOperator: entity => entity.operator,
-    Number: entity => entity.value,
+    Number: entity => `${entity.type} ${entity.value}`,
     Parameter: entity => entity.path.join('.'),
-    PeriodOperator: entity => entity.operator,
-    Variable: entity => entity.name
+    PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
+    Variable: entity => `${entity.type}\n${entity.name}${entity._stub ? '\n(not parsed yet)' : ''}`,
   }
-  return titleFunctionByEntityType.hasOwnProperty(entity.type)
-      ? titleFunctionByEntityType[entity.type](entity)
-      : null
+  return functionByEntityType.hasOwnProperty(entity.type)
+      ? functionByEntityType[entity.type](entity)
+      : entity.type
 }
 
 function referenceKeys (schema, entity) {
@@ -56,15 +57,8 @@ function main (fileContent) {
     for (let id in entityById) {
       const entity = entityById[id]
       id = entity.id // Overwrite with integer value (keys are strings).
-      let label = `${type} ${entity.id}`
-      const title = renderTitle(entity)
-      if (title !== null) {
-        label += '\n' + title
-      }
-      if (entity._stub) {
-        label += '\n(not parsed yet)'
-      }
       const attributes = attributesByEntityType[entity.type] || {shape: 'box'}
+      const label = renderLabel(entity)
       nodes.push({id, label, ...attributes})
       const schema = schemas[type]
       for (let referenceKey of referenceKeys(schema, entity)) {
