@@ -54,19 +54,18 @@ Visualize graph:
 sudo apt install xdot
 sudo npm install -g jgf-dot
 
-# Then (under the "fish" shell):
-xdot (npm run ast_to_graph variable1_normalized.json | jgfdot | psub)
+# Then (under the "fish" shell), to visualize `isf.py`:
+xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
-# More complex:
-python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_non_bati > isf_imm_non_bati.json
-xdot (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
-# For big files:
-xdot (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jq -c . | jgfdot | psub)
+# In many steps:
+python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.json
+npm run normalize isf.json > isf.normalized.json
+npm run ast_to_jsongraph isf.normalized.json > isf.graph.json
+jgfdot isf.graph.json > isf.dot
+xdot isf.dot
 
 # To save a PDF:
-dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm run ast_to_graph | jgfdot | psub)
-
-
+dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm run ast_to_jsongraph | jgfdot | psub)
 ```
 
 ## Enrich the web API

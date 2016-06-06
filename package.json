@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "OpenFisca Parsers is part of the [OpenFisca](http://www.openfisca.fr/) project, a versatile microsimulation free software.",
   "scripts": {
-    "ast_to_graph": "babel-node openfisca_parsers/scripts/ast_json_to_json_graph.js",
+    "ast_to_jsongraph": "babel-node openfisca_parsers/scripts/ast_json_to_jsongraph.js",
     "normalize": "babel-node openfisca_parsers/scripts/normalize_ast_json.js"
   },
   "repository": {
