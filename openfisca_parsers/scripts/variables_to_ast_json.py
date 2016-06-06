@@ -49,12 +49,14 @@ def show_json(ofnodes):
 # Parsing functions
 
 
-def parse_source_file(source_file_path, on_parse_error='show', variable_names=None):
+def parse_source_file(source_file_path, on_parse_error='show', variable_names=None, with_pyvariables=False):
     with open(source_file_path) as source_file:
         source_code = source_file.read()
     red = RedBaron(source_code)
-    context = contexts.create()
-    context[contexts.FILE] = source_file_path
+    context = contexts.create(initial_context={
+        contexts.FILE: source_file_path,
+        contexts.WITH_PYVARIABLES: with_pyvariables,
+        })
     variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
     for variable_class_rbnode in variable_class_rbnodes:
         variable_name = variable_class_rbnode.name
@@ -87,6 +89,8 @@ def main():
     parser.add_argument('--variable', dest='variable_names', metavar='VARIABLE',
                         nargs='+', help=u'Parse only this simulation Variable(s)')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
+    parser.add_argument('--with-pyvariables', action='store_true', default=False,
+                        help="Add Python variable names to Variable nodes")
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
@@ -94,6 +98,7 @@ def main():
         args.source_file_path,
         on_parse_error=args.on_parse_error,
         variable_names=args.variable_names,
+        with_pyvariables=args.with_pyvariables,
         )
     show_json(context[contexts.VARIABLES])
 

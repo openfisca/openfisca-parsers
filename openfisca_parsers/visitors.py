@@ -43,7 +43,7 @@ from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import ofnodes as ofn, rbnodes as rbn
-from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, VARIABLES
+from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, VARIABLES, WITH_PYVARIABLES
 
 
 # RedBaron nodes helpers
@@ -311,7 +311,8 @@ def visit_class(rbnode, context):
         ofn.update_ofnode_stub(variable_ofnode, merge=ofnode_dict)
 
     if def_rbnode is not None:
-        variable_ofnode['_pyvariables'] = context[LOCAL_PYVARIABLES]
+        if context.get(WITH_PYVARIABLES):
+            variable_ofnode['_pyvariables'] = context[LOCAL_PYVARIABLES]
         del context[LOCAL_PYVARIABLES]
         del context[LOCAL_SPLIT_BY_ROLES]
 

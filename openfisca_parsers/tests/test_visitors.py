@@ -23,10 +23,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from nose.tools import assert_equal, assert_not_equal, assert_not_in
+from nose.tools import assert_equal, assert_not_equal
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
+from openfisca_parsers.contexts import WITH_PYVARIABLES
 from openfisca_parsers.scripts.variables_to_ast_json import show_json
 
 
@@ -37,7 +38,7 @@ def function(self, simulation, period):
     return period, P
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
@@ -51,7 +52,7 @@ def function(self, simulation, period):
     return period, P
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
@@ -65,7 +66,7 @@ def function(self, simulation, period):
     return period, P.aaa.bbb
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
@@ -82,7 +83,7 @@ def function(self, simulation, period):
     return period, xxx + zzz
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ArithmeticOperator')
@@ -104,7 +105,7 @@ def function(self, simulation, period):
     return period, 0
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'Number')
@@ -123,7 +124,7 @@ class var1(Variable):
         return period, 0
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
     assert_equal(ofnode['name'], 'var1')
@@ -144,7 +145,7 @@ class var1(Variable):
         return period, crds[VOUS]
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create()
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
     assert_equal(ofnode['formula']['type'], 'VariableForRole')

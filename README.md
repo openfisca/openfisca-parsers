@@ -59,6 +59,9 @@ sudo npm install -g jgf-dot
 # To visualize `isf.py`:
 xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
+# To draw Python variables as labels in graph:
+xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --with-pyvariables | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
+
 # To visualize the graph produced by a test:
 xdot (nosetests -s openfisca_parsers.tests.test_visitors:test_split_by_roles | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
