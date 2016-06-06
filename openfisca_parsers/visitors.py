@@ -100,7 +100,7 @@ def visit_rbnode(rbnode, context):
 def visit_{}(rbnode, context):
     rbnode.help()
     import ipdb; ipdb.set_trace()
-    return make_ofnode({{
+    return ofn.make_ofnode({{
         'type': '',
         }}, rbnode, context)
 =============================================
@@ -387,3 +387,13 @@ def visit_tuple(rbnode, context):
         for rbnode1 in rbnode.value
         ]
     return ofnodes
+
+
+def visit_unitary_operator(rbnode, context):
+    operator = rbnode.value
+    operand = visit_rbnode(rbnode.target, context)
+    return ofn.make_ofnode({
+        'type': 'ArithmeticOperator',
+        'operator': operator,
+        'operands': [operand],
+        }, rbnode, context)
