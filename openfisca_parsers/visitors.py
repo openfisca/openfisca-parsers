@@ -182,7 +182,7 @@ def visit_atomtrailers(rbnode, context):
     elif rbn.is_legislation_at(rbnode.value):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
-        parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes)) or None
+        parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes))
         parameter_path = '.'.join(parameter_path_fragments)
         parameter_ofnode = context[PARAMETERS].get(parameter_path)
         if parameter_ofnode is None:

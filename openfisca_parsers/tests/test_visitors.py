@@ -41,7 +41,7 @@ def function(self, simulation, period):
     formula_dict = visitors.visit_rbnode(rbnode, context)
     show_json(formula_dict)
     assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
-    assert_not_in('path', formula_dict['formula_ofnode']['parameter'])
+    assert_equal(formula_dict['formula_ofnode']['parameter']['path'], [])
 
 
 def test_legislation_at_with_path():
@@ -49,6 +49,20 @@ def test_legislation_at_with_path():
 def function(self, simulation, period):
     P = simulation.legislation_at(period.start).aaa.bbb
     return period, P
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    formula_dict = visitors.visit_rbnode(rbnode, context)
+    show_json(formula_dict)
+    assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
+    assert_equal(formula_dict['formula_ofnode']['parameter']['path'], ['aaa', 'bbb'])
+
+
+def test_legislation_at_with_path_later():
+    source_code = '''\
+def function(self, simulation, period):
+    P = simulation.legislation_at(period.start)
+    return period, P.aaa.bbb
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
