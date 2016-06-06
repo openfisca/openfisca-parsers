@@ -129,3 +129,24 @@ class A(Variable):
     assert_equal(ofnode['formula']['type'], 'Number')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'Period')
+
+
+def test_split_by_roles():
+    source_code = '''\
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        crds_holder = simulation.compute('crds', period)
+        crds = self.split_by_roles(crds_holder, roles = [VOUS, CONJ])
+        return period, crds[VOUS]
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'VariableForRole')
+    assert_equal(ofnode['formula']['variable']['type'], 'VariableForPeriod')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')

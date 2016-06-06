@@ -26,8 +26,14 @@
 """Functions to manage context used in RedBaron nodes visitors."""
 
 
-CURRENT_LOCAL = 'ofnode_by_local_pyvariable_name'
+# Contextual to whole file parsing.
 FILE = 'current_source_file_path'
+
+# Contextual to visit_def.
+LOCAL_PYVARIABLES = 'ofnode_by_local_pyvariable_name'
+LOCAL_SPLIT_BY_ROLES = 'split_by_role_infos_by_pyvariable_name'
+
+# Global to tax and benefit system.
 PARAMETERS = 'ofnode_by_parameter_path'
 VARIABLES = 'ofnode_by_variable_name'
 

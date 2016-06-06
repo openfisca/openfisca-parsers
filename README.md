@@ -20,6 +20,8 @@ pip install --editable .
 
 ## Using
 
+> We use the [fish shell](https://fishshell.com/), sorry!
+
 Run the parser:
 
 ```
@@ -44,7 +46,7 @@ npm run normalize isf_imm_bati.json
 Parse and normalize and display both:
 
 ```
-python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee /dev/tty | npm run normalize
+python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee (tty) | npm run normalize
 ```
 
 Visualize graph:
@@ -54,8 +56,11 @@ Visualize graph:
 sudo apt install xdot
 sudo npm install -g jgf-dot
 
-# Then (under the "fish" shell), to visualize `isf.py`:
+# To visualize `isf.py`:
 xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
+
+# To visualize the graph produced by a test:
+xdot (nosetests -s openfisca_parsers.tests.test_visitors:test_split_by_roles | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
 # In many steps:
 python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.json

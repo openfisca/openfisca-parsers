@@ -43,7 +43,7 @@ from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import ofnodes as ofn, rbnodes as rbn
-from .contexts import CURRENT_LOCAL, PARAMETERS, VARIABLES
+from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, VARIABLES
 
 
 # RedBaron nodes helpers
@@ -110,7 +110,7 @@ def visit_{}(rbnode, context):
     return visitor(rbnode, context)
 
 
-# Specific visitors: rbnode -> ofnode
+# Specific visitors: rbnode -> ofnode | dict | None
 
 
 def visit_binary_operator(rbnode, context):
@@ -125,8 +125,15 @@ def visit_binary_operator(rbnode, context):
 
 
 def visit_assignment(rbnode, context):
-    """Just forward to right hand side node."""
-    return visit_rbnode(rbnode.value, context)
+    """Just forward to right hand side node. Handle special cases like "split_by_roles"."""
+    pyvariable_name = rbnode.target.value
+    if rbn.is_split_by_roles(rbnode.value):
+        split_by_roles_dict = visit_rbnode(rbnode.value, context)
+        context[LOCAL_SPLIT_BY_ROLES][pyvariable_name] = split_by_roles_dict
+    else:
+        ofnode = visit_rbnode(rbnode.value, context)
+        context[LOCAL_PYVARIABLES][pyvariable_name] = ofnode
+    return None
 
 
 def visit_associative_parenthesis(rbnode, context):
@@ -152,6 +159,7 @@ def visit_atomtrailers(rbnode, context):
             parameter_path_fragment = rbnode.value
             parameter_path_fragments = list(concatv(ofnode['path'], [parameter_path_fragment]))
             parameter_path = '.'.join(parameter_path_fragments)
+            # TODO Delegate finding to visit_name?
             parameter_ofnode = context[PARAMETERS].get(parameter_path)
             if parameter_ofnode is None:
                 parameter_ofnode = ofn.make_ofnode(assoc(ofnode, 'path', parameter_path_fragments), rbnode, context)
@@ -164,8 +172,11 @@ def visit_atomtrailers(rbnode, context):
             raise NotImplementedError(ofnode)
 
     if rbn.is_simulation_calculate(rbnode.value):
+        # simulation.compute return holders, which are represented by "VariableForPeriod" in the OpenFisca graph.
         variable_name = to_unicode(rbnode.call[0].value.to_python())
         period_pyvariable_name = rbnode.call[1].value.value
+        # Ensure there is no more atom in trailer like ".x.y"" in "simulation.calculate('variable_name', period).x.y".
+        assert len(rbnode.value) == 3, rbn.debug(rbnode, context)
         variable_ofnode = context[VARIABLES].get(variable_name)
         if variable_ofnode is None:
             # Create a stub which will be completed when the real Variable class will be parsed.
@@ -174,9 +185,11 @@ def visit_atomtrailers(rbnode, context):
                 'type': 'Variable',
                 'name': variable_name,
                 }, rbnode, context)
+        is_holder = rbnode.value[1].value == 'compute'
         return ofn.make_ofnode({
             'type': 'VariableForPeriod',
-            'period': context[CURRENT_LOCAL][period_pyvariable_name],
+            '_is_holder': is_holder or None,
+            'period': context[LOCAL_PYVARIABLES][period_pyvariable_name],
             'variable': variable_ofnode,
             }, rbnode, context)
     elif rbn.is_legislation_at(rbnode.value):
@@ -184,6 +197,7 @@ def visit_atomtrailers(rbnode, context):
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
         parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes))
         parameter_path = '.'.join(parameter_path_fragments)
+        # TODO Delegate finding to visit_name?
         parameter_ofnode = context[PARAMETERS].get(parameter_path)
         if parameter_ofnode is None:
             parameter_ofnode = ofn.make_ofnode({
@@ -196,16 +210,40 @@ def visit_atomtrailers(rbnode, context):
             'parameter': parameter_ofnode,
             'instant': period_ofnode,
             }, rbnode, context)
+    elif rbn.is_split_by_roles(rbnode.value):
+        holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        assert holder_ofnode['type'] == 'VariableForPeriod', holder_ofnode
+        assert len(rbnode.call) <= 2 and rbnode.call[1].name.value == 'roles', rbn.debug(rbnode, context)
+        roles = list(map(unicode, rbnode.call[1].value))
+        # Just return extracted data (not an ofnode).
+        return {'holder_ofnode': holder_ofnode, 'roles': roles}
     else:
         # The first rbnode must be an existing variable in the local context of the function.
         first_rbnode = rbnode.value[0]
         assert first_rbnode.type == 'name', rbn.debug(first_rbnode, context)
         name_ofnode = visit_rbnode(first_rbnode, context)
-        if first_rbnode.value in context[CURRENT_LOCAL]:
+        if first_rbnode.value in context[LOCAL_PYVARIABLES]:
             # first_rbnode is a local variable of the function.
             other_rbnodes = rbnode.value[1:]
             ofnode = reduce(apply_rbnode_to_ofnode, other_rbnodes, name_ofnode)
             return ofnode
+        elif first_rbnode.value in context[LOCAL_SPLIT_BY_ROLES]:
+            assert rbnode[1].type == 'getitem', rbn.debug(rbnode, context)
+            role = rbnode.getitem.value.value
+            variable_name = first_rbnode.value
+            split_by_roles_dict = context[LOCAL_SPLIT_BY_ROLES][variable_name]
+            variable_for_period_ofnode = split_by_roles_dict['holder_ofnode']
+            # In OpenFisca-Core Python code, a "VariableForRole" must always be applied to a "VariableForPeriod",
+            # which must be under its openfisca_core.holders.Holder form.
+            assert variable_for_period_ofnode['type'] == 'VariableForPeriod' and \
+                variable_for_period_ofnode['_is_holder'], variable_for_period_ofnode
+            # Keep general "variable" key as a "VariableForRole" and "VariableForPeriod" should be swappable
+            # in the OpenFisca graph.
+            return ofn.make_ofnode({
+                'type': 'VariableForRole',
+                'role': role,
+                'variable': variable_for_period_ofnode,
+                }, rbnode, context)
         else:
             # first_rbnode is a function, imported or builtin.
             # TODO Could be other things like a Python module.
@@ -264,7 +302,6 @@ def visit_class(rbnode, context):
         'stop_date': stop_date,
         'variable_type': variable_type,
         }
-
     variable_ofnode = context[VARIABLES].get(variable_name)
     if variable_ofnode is None:
         variable_ofnode = ofn.make_ofnode(ofnode_dict, rbnode, context)
@@ -272,9 +309,11 @@ def visit_class(rbnode, context):
     else:
         # variable_ofnode is a stub which was created by visit_atomtrailers.
         ofn.update_ofnode_stub(variable_ofnode, merge=ofnode_dict)
-    if CURRENT_LOCAL in context:
-        context[VARIABLES][variable_name]['_pyvariables'] = context[CURRENT_LOCAL]
-        del context[CURRENT_LOCAL]
+
+    if def_rbnode is not None:
+        variable_ofnode['_pyvariables'] = context[LOCAL_PYVARIABLES]
+        del context[LOCAL_PYVARIABLES]
+        del context[LOCAL_SPLIT_BY_ROLES]
 
     return variable_ofnode
 
@@ -291,28 +330,25 @@ def visit_comparison(rbnode, context):
 
 
 def visit_def(rbnode, context):
+    context[LOCAL_PYVARIABLES] = {'period': ofn.make_ofnode({'type': 'Period'}, rbnode, context)}
+    context[LOCAL_SPLIT_BY_ROLES] = {}
     body_rbnodes = rbnode.value.filter(is_significant_rbnode)
     docstring_rbnode = body_rbnodes.find(('string', 'unicode_string'), recursive=False)
     docstring = to_unicode(docstring_rbnode.to_python().strip()) if docstring_rbnode is not None else None
-    context[CURRENT_LOCAL] = {
-        'period': ofn.make_ofnode({'type': 'Period'}, rbnode, context)
-        }
     output_period_ofnode = formula_ofnode = None
     for index, rbnode in enumerate(body_rbnodes):
         if rbnode.type in ('comment', 'string'):
             continue
         elif rbnode.type == 'assignment':
-            ofnode = visit_rbnode(rbnode, context)
-            context[CURRENT_LOCAL][rbnode.target.value] = ofnode
+            visit_rbnode(rbnode, context)
         elif rbnode.type == 'return':
             # TODO Ensure there is no forgotten nodes after return.
             # assert index == len(body_rbnodes) - 1, u'return is not the last function statement'
             output_period_ofnode, formula_ofnode = visit_rbnode(rbnode.value, context)
         else:
-            raise NotImplementedError((rbnode.type, rbnode))
+            raise NotImplementedError((rbnode.type, rbn.debug(rbnode, context)))
     # Just return extracted data (not an ofnode).
     formula_dict = {
-        CURRENT_LOCAL: context[CURRENT_LOCAL],
         'docstring': docstring,
         'formula_ofnode': formula_ofnode,
         'output_period_ofnode': output_period_ofnode,
@@ -329,9 +365,9 @@ def visit_int(rbnode, context):
 
 def visit_name(rbnode, context):
     name = rbnode.value
-    if name in context[CURRENT_LOCAL]:
+    if name in context[LOCAL_PYVARIABLES]:
         # name is a local variable of the function.
-        return context[CURRENT_LOCAL][name]
+        return context[LOCAL_PYVARIABLES][name]
     else:
         # name is a function, imported or builtin.
         # TODO name could be another thing, like a Python module.

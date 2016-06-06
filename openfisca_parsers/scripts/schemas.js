@@ -8,13 +8,15 @@ export const Period = new Schema('Period')
 export const PeriodOperator = new Schema('PeriodOperator')
 export const Variable = new Schema('Variable')
 export const VariableForPeriod = new Schema('VariableForPeriod')
+export const VariableForRole = new Schema('VariableForRole')
 
 export const expression = unionOf({
   ArithmeticOperator,
   Number,
   Parameter,
   ParameterAtInstant,
-  VariableForPeriod
+  VariableForPeriod,
+  VariableForRole
 }, {schemaAttribute: 'type'})
 
 export const periodOrPeriodOperator = unionOf({
@@ -29,7 +31,8 @@ const pyvariable = unionOf({
   ParameterAtInstant,
   Period,
   PeriodOperator,
-  VariableForPeriod
+  VariableForPeriod,
+  VariableForRole
 }, {schemaAttribute: 'type'})
 
 ArithmeticOperator.define({
@@ -53,5 +56,9 @@ Variable.define({
 
 VariableForPeriod.define({
   period: periodOrPeriodOperator,
-  variable: Variable
+  variable: unionOf({Variable, VariableForRole}, {schemaAttribute: 'type'})
+})
+
+VariableForRole.define({
+  variable: unionOf({Variable, VariableForPeriod}, {schemaAttribute: 'type'})
 })

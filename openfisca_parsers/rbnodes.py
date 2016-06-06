@@ -82,10 +82,15 @@ def find_parameters(rbnodes):
 
 
 def is_legislation_at(rbnodes):
-    # Detects simulation.legislation_at calls.
-    return len(rbnodes) >= 2 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'legislation_at'
+    # Detects simulation.legislation_at(instant) calls.
+    return len(rbnodes) >= 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value == 'legislation_at'
 
 
 def is_simulation_calculate(rbnodes):
-    # Detects simulation.calculate or simulation.compute calls.
-    return len(rbnodes) == 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value in ('calculate', 'compute')
+    # Detects simulation.calculate('variable_name', period) or simulation.compute('variable_name', period) calls.
+    return len(rbnodes) >= 3 and rbnodes[0].value == 'simulation' and rbnodes[1].value in ('calculate', 'compute')
+
+
+def is_split_by_roles(rbnodes):
+    # Detects self.split_by_roles() calls.
+    return len(rbnodes) >= 3 and rbnodes[0].value == 'self' and rbnodes[1].value in 'split_by_roles'
