@@ -199,7 +199,7 @@ def visit_atomtrailers(rbnode, context):
     else:
         # The first rbnode must be an existing variable in the local context of the function.
         first_rbnode = rbnode.value[0]
-        assert first_rbnode.type == 'name', first_rbnode
+        assert first_rbnode.type == 'name', rbn.debug(first_rbnode, context)
         name_ofnode = visit_rbnode(first_rbnode, context)
         if first_rbnode.value in context[CURRENT_LOCAL]:
             # first_rbnode is a local variable of the function.
@@ -209,7 +209,7 @@ def visit_atomtrailers(rbnode, context):
         else:
             # first_rbnode is a function, imported or builtin.
             # TODO Could be other things like a Python module.
-            assert rbnode[1].type == 'call', rbnode
+            assert rbnode[1].type == 'call', rbn.debug(rbnode, context)
             call_arguments_rbnodes = rbnode.call.value
             # name_ofnode is a stub which was created by visit_name.
             assert name_ofnode['type'] == 'ArithmeticOperator', name_ofnode

@@ -49,9 +49,12 @@ def show_json(ofnodes):
 # Parsing functions
 
 
-def parse_string(source_code, on_parse_error='show', variable_names=None):
+def parse_source_file(source_file_path, on_parse_error='show', variable_names=None):
+    with open(source_file_path) as source_file:
+        source_code = source_file.read()
     red = RedBaron(source_code)
     context = contexts.create()
+    context[contexts.FILE] = source_file_path
     variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
     for variable_class_rbnode in variable_class_rbnodes:
         variable_name = variable_class_rbnode.name
@@ -69,6 +72,7 @@ def parse_string(source_code, on_parse_error='show', variable_names=None):
                     assert on_parse_error == 'show', on_parse_error
                     # log.exception(textwrap.indent(u'{}: {}'.format(message, exc)), '    ')  # Python 3
                     log.exception(u'{}: {}'.format(message, exc))
+    del context[contexts.FILE]
     return context
 
 
@@ -86,10 +90,11 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
-    with open(args.source_file_path) as source_file:
-        source_code = source_file.read()
-
-    context = parse_string(source_code, on_parse_error=args.on_parse_error, variable_names=args.variable_names)
+    context = parse_source_file(
+        args.source_file_path,
+        on_parse_error=args.on_parse_error,
+        variable_names=args.variable_names,
+        )
     show_json(context[contexts.VARIABLES])
 
     return 0

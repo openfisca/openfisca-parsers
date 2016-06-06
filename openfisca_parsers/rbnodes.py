@@ -29,6 +29,16 @@
 from toolz.curried import map
 from toolz.curried.operator import attrgetter
 
+from .contexts import FILE
+
+
+def debug(rbnode, context=None):
+    return u'{} at {}:{}'.format(
+        rbnode.dumps(),
+        context.get(FILE, '<unknown file>'),
+        rbnode.absolute_bounding_box.top_left.line,
+        )
+
 
 def find_all_variable_classes(rbnode, names=None):
     return rbnode(

@@ -27,6 +27,7 @@
 
 
 CURRENT_LOCAL = 'ofnode_by_local_pyvariable_name'
+FILE = 'current_source_file_path'
 PARAMETERS = 'ofnode_by_parameter_path'
 VARIABLES = 'ofnode_by_variable_name'
 
