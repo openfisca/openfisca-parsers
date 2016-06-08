@@ -124,10 +124,19 @@ def visit_binary_operator(rbnode, context):
     assert operator in ('+', '-', '*', '/'), operator
     operand1_ofnode = visit_rbnode(rbnode.first, context)
     operand2_ofnode = visit_rbnode(rbnode.second, context)
+    if operator == '-':
+        # Transform a binary "-" operator in a binary "+" whose second operand is wrapped in a unary "-".
+        operator = '+'
+        operand2_ofnode = ofn.make_ofnode({
+            'type': 'ArithmeticOperator',
+            'operator': '-',
+            'operands': [operand2_ofnode],
+            }, rbnode, context)
+    operands_ofnodes = ofn.reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode)
     return ofn.make_ofnode({
         'type': 'ArithmeticOperator',
         'operator': operator,
-        'operands': [operand1_ofnode, operand2_ofnode],
+        'operands': operands_ofnodes,
         }, rbnode, context)
 
 

@@ -26,7 +26,7 @@
 """Functions to navigate in OpenFisca AST nodes."""
 
 
-from toolz.curried import assoc, filter, valfilter
+from toolz.curried import assoc, concatv, valfilter
 
 
 def make_ofnode(items, rbnode, context, with_rbnode=False):
@@ -46,3 +46,24 @@ def update_ofnode_stub(ofnode, merge):
     ofnode.update(valfilter(lambda value: value is not None, merge))
     del ofnode['_stub']
     return ofnode
+
+
+# Graph optimization functions
+
+
+def reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode):
+    """
+    Reduce many binary ArithmeticOperator nodes into one equivalent n-ary ArithmeticOperator.
+
+    Examples:
+        +(a, b) => +(a, b)
+        +(+(a, b), c) => +(a, b, c)
+        +(a, +(b, c)) => +(a, b, c)
+        +(+(a, b), +(c, d)) => +(a, b, c, d)
+    """
+    operands_ofnodes = [operand1_ofnode, operand2_ofnode]
+    if operand1_ofnode['type'] == 'ArithmeticOperator' and operand1_ofnode['operator'] == operator:
+        operands_ofnodes = list(concatv(operand1_ofnode['operands'], [operand2_ofnode]))
+    if operand2_ofnode['type'] == 'ArithmeticOperator' and operand2_ofnode['operator'] == operator:
+        operands_ofnodes = list(concatv(operands_ofnodes[:-1], operand2_ofnode['operands']))
+    return operands_ofnodes

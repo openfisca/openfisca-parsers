@@ -152,3 +152,83 @@ class var1(Variable):
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
     assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')
+
+
+def test_reduce_binary_operator_1():
+    source_code = '''\
+1 + 2 + 3
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '+')
+    assert_equal(len(ofnode['operands']), 3)
+    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+
+
+def test_reduce_binary_operator_2():
+    source_code = '''\
+1 + 2 + 3 + 4
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '+')
+    assert_equal(len(ofnode['operands']), 4)
+    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+
+
+def test_reduce_binary_operator_3():
+    source_code = '''\
+(1 + 2) + (3 + 4)
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '+')
+    assert_equal(len(ofnode['operands']), 4)
+    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+
+
+def test_reduce_binary_operator_4():
+    source_code = '''\
+1 + 2 - 3
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '+')
+    assert_equal(len(ofnode['operands']), 3)
+    assert_equal(ofnode['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][1]['type'], 'Number')
+    assert_equal(ofnode['operands'][2]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][2]['operator'], '-')
+
+
+def test_reduce_binary_operator_5():
+    source_code = '''\
+1 - 2 - 3
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '+')
+    assert_equal(len(ofnode['operands']), 2)
+    assert_equal(ofnode['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operator'], '-')
+    assert_equal(ofnode['operands'][1]['operands'][0]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operator'], '-')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operands'][0]['type'], 'Number')
