@@ -14,10 +14,9 @@ function unionOf (obj) {
   return normalizrUnionOf(obj, {schemaAttribute: 'type'})
 }
 
-export const expression = unionOf({
+export const formula = unionOf({
   ArithmeticOperator,
   Number,
-  Parameter,
   ParameterAtInstant,
   VariableForPeriod,
   VariableForRole
@@ -40,7 +39,7 @@ const pyvariable = unionOf({
 })
 
 ArithmeticOperator.define({
-  operands: arrayOf(expression)
+  operands: arrayOf(formula)
 })
 
 ParameterAtInstant.define({
@@ -53,7 +52,7 @@ PeriodOperator.define({
 })
 
 Variable.define({
-  formula: expression,
+  formula,
   output_period: periodOrPeriodOperator,
   _pyvariables: valuesOf(pyvariable)
 })
