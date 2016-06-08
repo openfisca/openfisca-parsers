@@ -383,6 +383,13 @@ def visit_def(rbnode, context):
     return formula_dict
 
 
+def visit_float(rbnode, context):
+    return ofn.make_ofnode({
+        'type': 'Number',
+        'value': rbnode.to_python(),
+        }, rbnode, context)
+
+
 def visit_int(rbnode, context):
     return ofn.make_ofnode({
         'type': 'Number',
