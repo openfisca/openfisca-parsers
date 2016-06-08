@@ -100,7 +100,9 @@ def visit_{}(rbnode, context):
 
 def visit_binary_operator(rbnode, context):
     operator = rbnode.value
-    assert operator in ('+', '-', '*', '/'), operator
+    assert operator in ('+', '-', '*', '/', '&'), operator
+    if operator == '&':
+        operator = 'and'
     operand1_ofnode = visit_rbnode(rbnode.first, context)
     operand2_ofnode = visit_rbnode(rbnode.second, context)
     if operator == '-':
