@@ -148,7 +148,7 @@ class var1(Variable):
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['formula']['type'], 'VariableForRole')
+    assert_equal(ofnode['formula']['type'], 'ValueForRole')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
     assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')

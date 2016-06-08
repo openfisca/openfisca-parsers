@@ -250,14 +250,14 @@ def visit_atomtrailers(rbnode, context):
             variable_name = first_rbnode.value
             split_by_roles_dict = context[LOCAL_SPLIT_BY_ROLES][variable_name]
             variable_for_period_ofnode = split_by_roles_dict['holder_ofnode']
-            # In OpenFisca-Core Python code, a "VariableForRole" must always be applied to a "ValueForPeriod",
+            # In OpenFisca-Core Python code, a "ValueForRole" must always be applied to a "ValueForPeriod",
             # which must be under its openfisca_core.holders.Holder form.
             assert variable_for_period_ofnode['type'] == 'ValueForPeriod' and \
                 variable_for_period_ofnode['_is_holder'], variable_for_period_ofnode
-            # Keep general "variable" key as a "VariableForRole" and "ValueForPeriod" should be swappable
+            # Keep general "variable" key as a "ValueForRole" and "ValueForPeriod" should be swappable
             # in the OpenFisca graph.
             return ofn.make_ofnode({
-                'type': 'VariableForRole',
+                'type': 'ValueForRole',
                 'role': role,
                 'variable': variable_for_period_ofnode,
                 }, rbnode, context)

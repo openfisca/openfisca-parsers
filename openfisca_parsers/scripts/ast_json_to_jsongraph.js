@@ -21,7 +21,7 @@ function renderLabel (entity) {
     Parameter: entity => entity.path.join('.'),
     PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
     Variable: entity => `${entity.type}\n${entity.name}${entity._stub ? '\n(not parsed yet)' : ''}`,
-    VariableForRole: entity => `${entity.type}\n${entity.role}`
+    ValueForRole: entity => `${entity.type}\n${entity.role}`
   }
   return functionByEntityType.hasOwnProperty(entity.type)
       ? functionByEntityType[entity.type](entity)
