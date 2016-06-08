@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#! /usr/bin/env node
 
 import {normalize, valuesOf} from 'normalizr'
 import read from 'read-file-stdin'

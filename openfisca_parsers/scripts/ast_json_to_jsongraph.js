@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#! /usr/bin/env node
 
 import ArraySchema from 'normalizr/lib/IterableSchema'
 import EntitySchema from 'normalizr/lib/EntitySchema'
