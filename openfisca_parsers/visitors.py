@@ -112,7 +112,11 @@ def visit_{}(rbnode, context):
     return visitor(rbnode, context)
 
 
-# Specific visitors: rbnode -> ofnode | dict | None
+# Specific visitors: (rbnode, context) -> ofnode | dict | None
+# Visitors can:
+# - return an ofnode, a dict (which is not an ofnode of the graph, but is useful for the calling visitor), or None
+# - write to context: the caller of the visitor who wrote to context should erase it after usage
+# Returning a dict is simpler than writing to context because there is no cleanup management.
 
 
 def visit_binary_operator(rbnode, context):
