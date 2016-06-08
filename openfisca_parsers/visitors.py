@@ -126,6 +126,7 @@ def visit_binary_operator(rbnode, context):
             'operands': [operand2_ofnode],
             }, rbnode, context)
     operands_ofnodes = ofn.reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode)
+    # operands_ofnodes = [operand1_ofnode, operand2_ofnode]
     return ofn.make_ofnode({
         'type': 'ArithmeticOperator',
         'operator': operator,
@@ -312,7 +313,7 @@ def visit_class(rbnode, context):
         period_ofnode = ofn.make_ofnode({'type': 'Period'}, rbnode, context)
         context[LOCAL_PYVARIABLES] = {'period': period_ofnode}
         context[LOCAL_SPLIT_BY_ROLES] = {}
-        # context['current_class_visitor'] = {'entity_name': entity_name}
+        context['current_class_visitor'] = {'entity_name': entity_name}
         formula_dict = visit_rbnode(def_rbnode, context)
 
     ofnode_dict = {
@@ -341,7 +342,7 @@ def visit_class(rbnode, context):
             variable_ofnode['_pyvariables'] = context[LOCAL_PYVARIABLES]
         del context[LOCAL_PYVARIABLES]
         del context[LOCAL_SPLIT_BY_ROLES]
-        # del context['current_class_visitor']
+        del context['current_class_visitor']
 
     return variable_ofnode
 
