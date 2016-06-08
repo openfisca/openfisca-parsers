@@ -43,7 +43,7 @@ def debug(rbnode, context=None):
 def find_all_variable_classes(rbnode, names=None):
     return rbnode(
         'class',
-        inherit_from=lambda rbnodes: 'Variable' in map(attrgetter('value'), rbnodes),
+        inherit_from=lambda rbnodes: 'Variable' in list(map(attrgetter('value'), rbnodes)),
         name=lambda value: value in names if names is not None else True,  # True disables the name filter
         )
 
