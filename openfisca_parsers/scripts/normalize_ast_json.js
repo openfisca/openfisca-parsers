@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-import * as process from 'process'
-
 import {normalize, valuesOf} from 'normalizr'
 import read from 'read-file-stdin'
 

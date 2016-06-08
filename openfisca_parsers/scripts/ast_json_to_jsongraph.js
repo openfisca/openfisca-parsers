@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-import * as process from 'process'
-
 import ArraySchema from 'normalizr/lib/IterableSchema'
 import EntitySchema from 'normalizr/lib/EntitySchema'
 import UnionSchema from 'normalizr/lib/UnionSchema'
