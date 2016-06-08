@@ -70,6 +70,9 @@ def to_unicode(string_or_unicode):
 # All specific visitors must call it to concentrate flow (ie log calls).
 
 
+indent_level = 0
+
+
 def visit_rbnode(rbnode, context):
     visitors = keyfilter(lambda key: key.startswith('visit_'), globals())
     visitor = visitors.get('visit_' + rbnode.type)
@@ -88,7 +91,16 @@ def visit_{}(rbnode, context):
 '''.format(rbnode.type),
             type=rbnode.type,
             ))
-    return visitor(rbnode, context)
+    global indent_level
+    # print u'{}{} – {}'.format(
+    #     ' ' * indent_level * 4,
+    #     rbnode.type,
+    #     rbnode.dumps().split('\n')[0],
+    #     ).encode('utf-8')
+    indent_level += 1
+    ofnode = visitor(rbnode, context)
+    indent_level -= 1
+    return ofnode
 
 
 # Specific visitors: (rbnode, context) -> ofnode | dict | None
