@@ -11,7 +11,8 @@ const attributesByEntityType = {
   ArithmeticOperator: {shape: 'circle'},
   Constant: {shape: 'oval'},
   Parameter: {shape: 'box', style: 'filled'},
-  ValueForEntity: {shape: 'box', penwidth: 3},
+  ValueForEntity: {shape: 'trapezium', penwidth: 3},
+  ValueForRole: {shape: 'trapezium'},
   Variable: {shape: 'oval', style: 'filled'}
 }
 

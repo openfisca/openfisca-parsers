@@ -61,7 +61,7 @@ Variable.define({
 })
 
 ValueForEntity.define({
-  variable: ValueForPeriod
+  variable: unionOf({ValueForPeriod, ValueForRole})
 })
 
 ValueForPeriod.define({

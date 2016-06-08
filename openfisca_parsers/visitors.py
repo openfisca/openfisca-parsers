@@ -222,6 +222,7 @@ def visit_atomtrailers(rbnode, context):
             }, rbnode, context)
     elif rbn.is_split_by_roles(rbnode.value):
         holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        # TODO Check value type, not ofnode type.
         assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
         assert len(rbnode.call) <= 2 and rbnode.call[1].name.value == 'roles', rbn.debug(rbnode, context)
         roles = list(map(unicode, rbnode.call[1].value))
@@ -229,13 +230,25 @@ def visit_atomtrailers(rbnode, context):
         return {'holder_ofnode': holder_ofnode, 'roles': roles}
     elif rbn.is_sum_by_entity(rbnode.value):
         holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
-        assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
-        assert len(rbnode.call) == 1, rbn.debug(rbnode, context)
+        # TODO Check value type, not ofnode type.
+        # assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
+        assert len(rbnode.call) == 1, rbn.debug(rbnode, context)  # Later "roles" kwargs will be supported.
         # Another possibility is to use make_sum_of_value_for_all_roles_ofnode.
         # return ofn.make_sum_of_value_for_all_roles_ofnode(holder_ofnode, rbnode, context)
         return ofn.make_ofnode({
             'type': 'ValueForEntity',
             'operator': '+',
+            'variable': holder_ofnode,
+            }, rbnode, context)
+    elif rbn.is_cast_from_entity_to_roles(rbnode.value):
+        holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        # TODO Check value type, not ofnode type.
+        assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
+        assert len(rbnode.call) <= 2 and rbnode.call[1].name.value == 'role', rbn.debug(rbnode, context)
+        role = rbnode.call[1].value.value
+        return ofn.make_ofnode({
+            'type': 'ValueForRole',
+            'role': role,
             'variable': holder_ofnode,
             }, rbnode, context)
     else:
@@ -254,17 +267,16 @@ def visit_atomtrailers(rbnode, context):
             role = rbnode.getitem.value.value
             variable_name = first_rbnode.value
             split_by_roles_dict = context[LOCAL_SPLIT_BY_ROLES][variable_name]
-            variable_for_period_ofnode = split_by_roles_dict['holder_ofnode']
+            holder_ofnode = split_by_roles_dict['holder_ofnode']
             # In OpenFisca-Core Python code, a "ValueForRole" must always be applied to a "ValueForPeriod",
             # which must be under its openfisca_core.holders.Holder form.
-            assert variable_for_period_ofnode['type'] == 'ValueForPeriod' and \
-                variable_for_period_ofnode['_is_holder'], variable_for_period_ofnode
+            assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
             # Keep general "variable" key as a "ValueForRole" and "ValueForPeriod" should be swappable
             # in the OpenFisca graph.
             return ofn.make_ofnode({
                 'type': 'ValueForRole',
                 'role': role,
-                'variable': variable_for_period_ofnode,
+                'variable': holder_ofnode,
                 }, rbnode, context)
         else:
             # first_rbnode is a function, imported or builtin.

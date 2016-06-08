@@ -196,6 +196,31 @@ class var1(Variable):
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'rag')
 
 
+def test_cast_from_entity_to_role():
+    source_code = '''\
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        taxe_habitation_holder = simulation.compute('taxe_habitation', period)
+        taxe_habitation = self.cast_from_entity_to_role(taxe_habitation_holder, role = PREF)
+        taxe_habitation = self.sum_by_entity(taxe_habitation)
+        return period, taxe_habitation
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ValueForEntity')
+    assert_equal(ofnode['formula']['operator'], '+')
+    assert_equal(ofnode['formula']['variable']['type'], 'ValueForRole')
+    assert_equal(ofnode['formula']['variable']['role'], 'PREF')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'ValueForPeriod')
+    assert_equal(ofnode['formula']['variable']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['variable']['name'], 'taxe_habitation')
+
+
 def test_reduce_binary_operator_1():
     source_code = '''\
 1 + 2 + 3
