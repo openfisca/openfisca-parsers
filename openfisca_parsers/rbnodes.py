@@ -92,5 +92,10 @@ def is_simulation_calculate(rbnodes):
 
 
 def is_split_by_roles(rbnodes):
-    # Detects self.split_by_roles() calls.
+    # Detects self.split_by_roles(...) calls.
     return len(rbnodes) >= 3 and rbnodes[0].value == 'self' and rbnodes[1].value in 'split_by_roles'
+
+
+def is_sum_by_entity(rbnodes):
+    # Detects self.is_sum_by_entity(...) calls.
+    return len(rbnodes) >= 3 and rbnodes[0].value == 'self' and rbnodes[1].value in 'sum_by_entity'

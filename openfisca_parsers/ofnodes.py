@@ -28,6 +28,8 @@
 
 from toolz.curried import assoc, concatv, valfilter
 
+from . import openfisca_data
+
 
 def make_ofnode(items, rbnode, context, with_rbnode=False):
     """
@@ -39,6 +41,26 @@ def make_ofnode(items, rbnode, context, with_rbnode=False):
     if with_rbnode:
         ofnode = assoc(ofnode, '_rbnode', rbnode)
     return valfilter(lambda value: value is not None, ofnode)
+
+
+def make_sum_of_value_for_all_roles_ofnode(ofnode, rbnode, context):
+    """This is the expanded version of sum_by_entity."""
+    entity_name = context['current_class_visitor']['entity_name']
+    all_roles = openfisca_data.get_all_roles(entity_name)
+    value_for_role_ofnodes = list(map(
+        lambda role: make_ofnode({
+            'type': 'ValueForRole',
+            'role': role,
+            'variable': ofnode,
+            }, rbnode, context),
+        all_roles,
+        ))
+    sum_ofnode = make_ofnode({
+        'type': 'ArithmeticOperator',
+        'operator': '+',
+        'operands': value_for_role_ofnodes,
+        }, rbnode, context)
+    return sum_ofnode
 
 
 def update_ofnode_stub(ofnode, merge):

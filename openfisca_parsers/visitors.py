@@ -42,7 +42,7 @@ from toolz.curried import assoc, concatv, keyfilter, map
 from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
-from . import ofnodes as ofn, rbnodes as rbn
+from . import ofnodes as ofn, openfisca_data, rbnodes as rbn
 from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, VARIABLES, WITH_PYVARIABLES
 
 
@@ -64,27 +64,6 @@ def to_unicode(string_or_unicode):
         assert isinstance(string_or_unicode, unicode), string_or_unicode
         string_or_unicode = string_or_unicode.encode('raw_unicode_escape').decode('utf-8')
     return string_or_unicode
-
-
-# OpenFisca-Core names to OpenFisca AST names
-
-
-def get_entity_name(entity_class_name):
-    return {
-        'Familles': 'famille',
-        'FoyersFiscaux': 'foyer_fiscal',
-        'Individus': 'individus',
-        'Menages': 'menage',
-        }[entity_class_name]
-
-
-def get_variable_type(column_class_name):
-    variable_type = {
-        'FloatCol': 'float',
-        'IntCol': 'int',
-        }.get(column_class_name)
-    assert variable_type is not None
-    return variable_type
 
 
 # Generic visitor: rbnode, context -> ofnode | dict
@@ -228,12 +207,22 @@ def visit_atomtrailers(rbnode, context):
             }, rbnode, context)
     elif rbn.is_split_by_roles(rbnode.value):
         holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
-        assert holder_ofnode['type'] == 'ValueForPeriod', holder_ofnode
+        assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
         assert len(rbnode.call) <= 2 and rbnode.call[1].name.value == 'roles', rbn.debug(rbnode, context)
         roles = list(map(unicode, rbnode.call[1].value))
         # Just return extracted data (not an ofnode).
         return {'holder_ofnode': holder_ofnode, 'roles': roles}
-    # elif rbn.is_sum_by_entity():
+    elif rbn.is_sum_by_entity(rbnode.value):
+        holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        assert holder_ofnode['type'] == 'ValueForPeriod' and holder_ofnode['_is_holder'], holder_ofnode
+        assert len(rbnode.call) == 1, rbn.debug(rbnode, context)
+        # Another possibility is to use make_sum_of_value_for_all_roles_ofnode.
+        # return ofn.make_sum_of_value_for_all_roles_ofnode(holder_ofnode, rbnode, context)
+        return ofn.make_ofnode({
+            'type': 'ValueForEntity',
+            'operator': '+',
+            'variable': holder_ofnode,
+            }, rbnode, context)
     else:
         # The first rbnode must be an existing variable in the local context of the function.
         first_rbnode = rbnode.value[0]
@@ -245,6 +234,7 @@ def visit_atomtrailers(rbnode, context):
             ofnode = reduce(apply_rbnode_to_ofnode, other_rbnodes, name_ofnode)
             return ofnode
         elif first_rbnode.value in context[LOCAL_SPLIT_BY_ROLES]:
+            # Handle getitem nodes like "xxx[VOUS]".
             assert rbnode[1].type == 'getitem', rbn.debug(rbnode, context)
             role = rbnode.getitem.value.value
             variable_name = first_rbnode.value
@@ -283,13 +273,14 @@ def visit_class(rbnode, context):
     variable_name = rbnode.name
 
     column_rbnode = rbn.find_class_attribute(rbnode, name='column')
-    variable_type = get_variable_type(column_rbnode.name.value)
+    variable_type = openfisca_data.get_variable_type(column_rbnode.name.value)
     default_value = rbn.find_column_default_value(column_rbnode)
 
     label_rbnode = rbn.find_class_attribute(rbnode, name='label')
     label = to_unicode(label_rbnode.to_python()) if label_rbnode is not None else None
 
     entity_rbnode = rbn.find_class_attribute(rbnode, name='entity_class')
+    entity_name = openfisca_data.get_entity_name(entity_rbnode.value)
 
     start_date_rbnode = rbn.find_class_attribute(rbnode, name='start_date')
     start_date = '-'.join(map(lambda rbnode: rbnode.value.value, start_date_rbnode.call.filtered())) \
@@ -307,13 +298,14 @@ def visit_class(rbnode, context):
         period_ofnode = ofn.make_ofnode({'type': 'Period'}, rbnode, context)
         context[LOCAL_PYVARIABLES] = {'period': period_ofnode}
         context[LOCAL_SPLIT_BY_ROLES] = {}
+        # context['current_class_visitor'] = {'entity_name': entity_name}
         formula_dict = visit_rbnode(def_rbnode, context)
 
     ofnode_dict = {
         'type': 'Variable',
         'default_value': default_value,
         'docstring': formula_dict.get('docstring'),
-        'entity': get_entity_name(entity_rbnode.value),
+        'entity': entity_name,
         'formula': formula_dict.get('formula_ofnode'),
         'label': label,
         'name': variable_name,
@@ -335,6 +327,7 @@ def visit_class(rbnode, context):
             variable_ofnode['_pyvariables'] = context[LOCAL_PYVARIABLES]
         del context[LOCAL_PYVARIABLES]
         del context[LOCAL_SPLIT_BY_ROLES]
+        # del context['current_class_visitor']
 
     return variable_ofnode
 

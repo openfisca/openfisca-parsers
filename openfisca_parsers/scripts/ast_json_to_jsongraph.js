@@ -11,6 +11,7 @@ const attributesByEntityType = {
   ArithmeticOperator: {shape: 'circle'},
   Parameter: {shape: 'box', style: 'filled'},
   Number: {shape: 'oval'},
+  ValueForEntity: {shape: 'box', penwidth: 3},
   Variable: {shape: 'oval', style: 'filled'}
 }
 
@@ -26,8 +27,9 @@ function renderLabel (entity) {
     Number: entity => `${entity.type} ${entity.value}`,
     Parameter: entity => entity.path.join('.'),
     PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
-    Variable: entity => `${entity.type}\n${entity.name}${entity._stub ? '\n(not parsed yet)' : ''}`,
-    ValueForRole: entity => `${entity.type}\n${entity.role}`
+    ValueForEntity: entity => `${entity.type}\n${entity.operator}`,
+    ValueForRole: entity => `${entity.type}\n${entity.role}`,
+    Variable: entity => `${entity.type}\n${entity.name}@${entity.entity || 'unknown'}${entity._stub ? '\n(not parsed yet)' : ''}`
   }
   return functionByEntityType.hasOwnProperty(entity.type)
       ? functionByEntityType[entity.type](entity)

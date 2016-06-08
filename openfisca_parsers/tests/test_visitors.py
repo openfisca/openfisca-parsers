@@ -174,6 +174,28 @@ class var1(Variable):
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')
 
 
+def test_sum_by_entity():
+    source_code = '''\
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        rag_holder = simulation.compute('rag', period)
+        rag = self.sum_by_entity(rag_holder)
+        return period, rag
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ValueForEntity')
+    assert_equal(ofnode['formula']['operator'], '+')
+    assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['name'], 'rag')
+
+
 def test_reduce_binary_operator_1():
     source_code = '''\
 1 + 2 + 3
