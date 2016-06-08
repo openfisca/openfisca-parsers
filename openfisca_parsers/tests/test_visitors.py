@@ -149,6 +149,6 @@ class var1(Variable):
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
     assert_equal(ofnode['formula']['type'], 'VariableForRole')
-    assert_equal(ofnode['formula']['variable']['type'], 'VariableForPeriod')
+    assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
     assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')

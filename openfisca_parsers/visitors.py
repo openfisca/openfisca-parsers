@@ -175,7 +175,7 @@ def visit_atomtrailers(rbnode, context):
             raise NotImplementedError(ofnode)
 
     if rbn.is_simulation_calculate(rbnode.value):
-        # simulation.compute return holders, which are represented by "VariableForPeriod" in the OpenFisca graph.
+        # simulation.compute return holders, which are represented by "ValueForPeriod" in the OpenFisca graph.
         variable_name = to_unicode(rbnode.call[0].value.to_python())
         period_pyvariable_name = rbnode.call[1].value.value
         # Ensure there is no more atom in trailer like ".x.y"" in "simulation.calculate('variable_name', period).x.y".
@@ -190,7 +190,7 @@ def visit_atomtrailers(rbnode, context):
                 }, rbnode, context)
         is_holder = rbnode.value[1].value == 'compute'
         return ofn.make_ofnode({
-            'type': 'VariableForPeriod',
+            'type': 'ValueForPeriod',
             '_is_holder': is_holder or None,
             'period': context[LOCAL_PYVARIABLES][period_pyvariable_name],
             'variable': variable_ofnode,
@@ -215,11 +215,12 @@ def visit_atomtrailers(rbnode, context):
             }, rbnode, context)
     elif rbn.is_split_by_roles(rbnode.value):
         holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
-        assert holder_ofnode['type'] == 'VariableForPeriod', holder_ofnode
+        assert holder_ofnode['type'] == 'ValueForPeriod', holder_ofnode
         assert len(rbnode.call) <= 2 and rbnode.call[1].name.value == 'roles', rbn.debug(rbnode, context)
         roles = list(map(unicode, rbnode.call[1].value))
         # Just return extracted data (not an ofnode).
         return {'holder_ofnode': holder_ofnode, 'roles': roles}
+    # elif rbn.is_sum_by_entity():
     else:
         # The first rbnode must be an existing variable in the local context of the function.
         first_rbnode = rbnode.value[0]
@@ -236,11 +237,11 @@ def visit_atomtrailers(rbnode, context):
             variable_name = first_rbnode.value
             split_by_roles_dict = context[LOCAL_SPLIT_BY_ROLES][variable_name]
             variable_for_period_ofnode = split_by_roles_dict['holder_ofnode']
-            # In OpenFisca-Core Python code, a "VariableForRole" must always be applied to a "VariableForPeriod",
+            # In OpenFisca-Core Python code, a "VariableForRole" must always be applied to a "ValueForPeriod",
             # which must be under its openfisca_core.holders.Holder form.
-            assert variable_for_period_ofnode['type'] == 'VariableForPeriod' and \
+            assert variable_for_period_ofnode['type'] == 'ValueForPeriod' and \
                 variable_for_period_ofnode['_is_holder'], variable_for_period_ofnode
-            # Keep general "variable" key as a "VariableForRole" and "VariableForPeriod" should be swappable
+            # Keep general "variable" key as a "VariableForRole" and "ValueForPeriod" should be swappable
             # in the OpenFisca graph.
             return ofn.make_ofnode({
                 'type': 'VariableForRole',
