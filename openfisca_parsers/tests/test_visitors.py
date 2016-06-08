@@ -33,61 +33,77 @@ from openfisca_parsers.scripts.variables_to_ast_json import show_json
 
 def test_legislation_at():
     source_code = '''\
-def function(self, simulation, period):
-    P = simulation.legislation_at(period.start)
-    return period, P
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        P = simulation.legislation_at(period.start)
+        return period, P
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
-    formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_json(formula_dict)
-    assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
-    assert_equal(formula_dict['formula_ofnode']['parameter']['path'], [])
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
+    assert_equal(ofnode['formula']['parameter']['path'], [])
 
 
 def test_legislation_at_with_path():
     source_code = '''\
-def function(self, simulation, period):
-    P = simulation.legislation_at(period.start).aaa.bbb
-    return period, P
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        P = simulation.legislation_at(period.start).aaa.bbb
+        return period, P
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
-    formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_json(formula_dict)
-    assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
-    assert_equal(formula_dict['formula_ofnode']['parameter']['path'], ['aaa', 'bbb'])
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
+    assert_equal(ofnode['formula']['parameter']['path'], ['aaa', 'bbb'])
 
 
 def test_legislation_at_with_path_later():
     source_code = '''\
-def function(self, simulation, period):
-    P = simulation.legislation_at(period.start)
-    return period, P.aaa.bbb
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        P = simulation.legislation_at(period.start)
+        return period, P.aaa.bbb
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
-    formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_json(formula_dict)
-    assert_equal(formula_dict['formula_ofnode']['type'], 'ParameterAtInstant')
-    assert_equal(formula_dict['formula_ofnode']['parameter']['path'], ['aaa', 'bbb'])
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
+    assert_equal(ofnode['formula']['parameter']['path'], ['aaa', 'bbb'])
 
 
 def test_legislation_at_with_paths_forks():
     source_code = '''\
-def function(self, simulation, period):
-    P = simulation.legislation_at(period.start).aaa.bbb
-    xxx = P.xxx
-    yyy = P.yyy
-    zzz = yyy.zzz
-    return period, xxx + zzz
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        P = simulation.legislation_at(period.start).aaa.bbb
+        xxx = P.xxx
+        yyy = P.yyy
+        zzz = yyy.zzz
+        return period, xxx + zzz
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
-    formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_json(formula_dict)
-    assert_equal(formula_dict['formula_ofnode']['type'], 'ArithmeticOperator')
-    left_ofnode, right_ofnode = formula_dict['formula_ofnode']['operands']
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ArithmeticOperator')
+    left_ofnode, right_ofnode = ofnode['formula']['operands']
     assert_equal(left_ofnode['type'], 'ParameterAtInstant')
     assert_equal(right_ofnode['type'], 'ParameterAtInstant')
     assert_equal(left_ofnode['parameter']['type'], 'Parameter')
@@ -100,18 +116,22 @@ def function(self, simulation, period):
 
 def test_period_this_year():
     source_code = '''\
-def function(self, simulation, period):
-    period = period.this_year
-    return period, 0
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        period = period.this_year
+        return period, 0
 '''
     rbnode = RedBaron(source_code)[0]
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
-    formula_dict = visitors.visit_rbnode(rbnode, context)
-    show_json(formula_dict)
-    assert_equal(formula_dict['formula_ofnode']['type'], 'Number')
-    assert_equal(formula_dict['formula_ofnode']['value'], 0)
-    assert_equal(formula_dict['output_period_ofnode']['type'], 'PeriodOperator')
-    assert_equal(formula_dict['output_period_ofnode']['operator'], 'this_year')
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['formula']['type'], 'Number')
+    assert_equal(ofnode['formula']['value'], 0)
+    assert_equal(ofnode['output_period']['type'], 'PeriodOperator')
+    assert_equal(ofnode['output_period']['operator'], 'this_year')
 
 
 def test_variable_class():

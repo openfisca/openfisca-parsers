@@ -304,6 +304,9 @@ def visit_class(rbnode, context):
     def_rbnode = rbn.find_formula_function(rbnode)
     formula_dict = {}
     if def_rbnode is not None:
+        period_ofnode = ofn.make_ofnode({'type': 'Period'}, rbnode, context)
+        context[LOCAL_PYVARIABLES] = {'period': period_ofnode}
+        context[LOCAL_SPLIT_BY_ROLES] = {}
         formula_dict = visit_rbnode(def_rbnode, context)
 
     ofnode_dict = {
@@ -348,8 +351,6 @@ def visit_comparison(rbnode, context):
 
 
 def visit_def(rbnode, context):
-    context[LOCAL_PYVARIABLES] = {'period': ofn.make_ofnode({'type': 'Period'}, rbnode, context)}
-    context[LOCAL_SPLIT_BY_ROLES] = {}
     body_rbnodes = rbnode.value.filter(is_significant_rbnode)
     docstring_rbnode = body_rbnodes.find(('string', 'unicode_string'), recursive=False)
     docstring = to_unicode(docstring_rbnode.to_python().strip()) if docstring_rbnode is not None else None
