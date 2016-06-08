@@ -76,6 +76,14 @@ xdot isf.dot
 dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm run ast_to_jsongraph | jgfdot | psub)
 ```
 
+## Tests
+
+Simply run:
+
+```
+$ nosetests
+```
+
 ## Enrich the web API
 
 The [OpenFisca web API](https://github.com/openfisca/openfisca-web-api) outputs more information if OpenFisca Parsers
