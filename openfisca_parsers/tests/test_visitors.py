@@ -128,7 +128,7 @@ class var1(Variable):
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['formula']['type'], 'Number')
+    assert_equal(ofnode['formula']['type'], 'Constant')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'PeriodOperator')
     assert_equal(ofnode['output_period']['operator'], 'this_year')
@@ -148,7 +148,7 @@ class var1(Variable):
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
     assert_equal(ofnode['name'], 'var1')
-    assert_equal(ofnode['formula']['type'], 'Number')
+    assert_equal(ofnode['formula']['type'], 'Constant')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'Period')
 
@@ -207,7 +207,7 @@ def test_reduce_binary_operator_1():
     assert_equal(ofnode['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
-    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+    assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
 def test_reduce_binary_operator_2():
@@ -221,7 +221,7 @@ def test_reduce_binary_operator_2():
     assert_equal(ofnode['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
-    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+    assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
 def test_reduce_binary_operator_3():
@@ -235,7 +235,7 @@ def test_reduce_binary_operator_3():
     assert_equal(ofnode['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
-    assert all(operand_ofnode['type'] == 'Number' for operand_ofnode in ofnode['operands']), ofnode['operands']
+    assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
 def test_reduce_binary_operator_4():
@@ -249,8 +249,8 @@ def test_reduce_binary_operator_4():
     assert_equal(ofnode['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
-    assert_equal(ofnode['operands'][0]['type'], 'Number')
-    assert_equal(ofnode['operands'][1]['type'], 'Number')
+    assert_equal(ofnode['operands'][0]['type'], 'Constant')
+    assert_equal(ofnode['operands'][1]['type'], 'Constant')
     assert_equal(ofnode['operands'][2]['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operands'][2]['operator'], '-')
 
@@ -266,11 +266,11 @@ def test_reduce_binary_operator_5():
     assert_equal(ofnode['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 2)
-    assert_equal(ofnode['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][0]['type'], 'Constant')
     assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operands'][1]['operator'], '-')
     assert_equal(ofnode['operands'][1]['operands'][0]['type'], 'ArithmeticOperator')
-    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][0]['type'], 'Constant')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operator'], '-')
-    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operands'][0]['type'], 'Number')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operands'][0]['type'], 'Constant')

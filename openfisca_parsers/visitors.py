@@ -385,14 +385,14 @@ def visit_def(rbnode, context):
 
 def visit_float(rbnode, context):
     return ofn.make_ofnode({
-        'type': 'Number',
+        'type': 'Constant',
         'value': rbnode.to_python(),
         }, rbnode, context)
 
 
 def visit_int(rbnode, context):
     return ofn.make_ofnode({
-        'type': 'Number',
+        'type': 'Constant',
         'value': rbnode.to_python(),
         }, rbnode, context)
 

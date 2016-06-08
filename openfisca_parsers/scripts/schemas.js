@@ -1,7 +1,7 @@
 import {Schema, arrayOf, unionOf as normalizrUnionOf, valuesOf} from 'normalizr'
 
 export const ArithmeticOperator = new Schema('ArithmeticOperator')
-export const Number = new Schema('Number')
+export const Constant = new Schema('Constant')
 export const Parameter = new Schema('Parameter')
 export const ParameterAtInstant = new Schema('ParameterAtInstant')
 export const Period = new Schema('Period')
@@ -17,7 +17,7 @@ function unionOf (obj) {
 
 export const formula = unionOf({
   ArithmeticOperator,
-  Number,
+  Constant,
   ParameterAtInstant,
   ValueForEntity,
   ValueForPeriod,
@@ -31,7 +31,7 @@ export const periodOrPeriodOperator = unionOf({
 
 const pyvariable = unionOf({
   ArithmeticOperator,
-  Number,
+  Constant,
   Parameter,
   ParameterAtInstant,
   Period,

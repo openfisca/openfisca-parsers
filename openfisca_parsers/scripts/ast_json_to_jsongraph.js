@@ -9,8 +9,8 @@ import * as schemas from './schemas'
 
 const attributesByEntityType = {
   ArithmeticOperator: {shape: 'circle'},
+  Constant: {shape: 'oval'},
   Parameter: {shape: 'box', style: 'filled'},
-  Number: {shape: 'oval'},
   ValueForEntity: {shape: 'box', penwidth: 3},
   Variable: {shape: 'oval', style: 'filled'}
 }
@@ -24,7 +24,7 @@ function checkTarget (target) {
 function renderLabel (entity) {
   const functionByEntityType = {
     ArithmeticOperator: entity => entity.operator,
-    Number: entity => `${entity.type} ${entity.value}`,
+    Constant: entity => `${entity.type} ${entity.value}`,
     Parameter: entity => entity.path.join('.'),
     PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
     ValueForEntity: entity => `${entity.type}\n${entity.operator}`,
