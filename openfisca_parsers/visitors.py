@@ -79,10 +79,12 @@ def get_entity_name(entity_class_name):
 
 
 def get_variable_type(column_class_name):
-    return {
+    variable_type = {
         'FloatCol': 'float',
         'IntCol': 'int',
-        }[column_class_name]
+        }.get(column_class_name)
+    assert variable_type is not None
+    return variable_type
 
 
 # Generic visitor: rbnode, context -> ofnode | dict
@@ -114,13 +116,14 @@ def visit_{}(rbnode, context):
 
 
 def visit_binary_operator(rbnode, context):
+    operator = rbnode.value
+    assert operator in ('+', '-', '*', '/'), operator
+    operand1_ofnode = visit_rbnode(rbnode.first, context)
+    operand2_ofnode = visit_rbnode(rbnode.second, context)
     return ofn.make_ofnode({
         'type': 'ArithmeticOperator',
-        'operator': rbnode.value,
-        'operands': [
-            visit_rbnode(rbnode.first, context),
-            visit_rbnode(rbnode.second, context),
-            ],
+        'operator': operator,
+        'operands': [operand1_ofnode, operand2_ofnode],
         }, rbnode, context)
 
 
@@ -391,6 +394,7 @@ def visit_tuple(rbnode, context):
 
 def visit_unitary_operator(rbnode, context):
     operator = rbnode.value
+    assert operator == '-', operator
     operand = visit_rbnode(rbnode.target, context)
     return ofn.make_ofnode({
         'type': 'ArithmeticOperator',
