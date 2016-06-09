@@ -300,8 +300,20 @@ def visit_class(rbnode, context):
     variable_name = rbnode.name
 
     column_rbnode = rbn.find_class_attribute(rbnode, name='column')
-    value_type = rbn.get_value_type(column_rbnode)
-    default_value = rbn.find_column_default_value(column_rbnode)
+    column_name = column_rbnode.name.value
+    is_period_size_independent = column_name == 'PeriodSizeIndependentIntCol'
+    column_kwargs = {
+        kwarg_rbnode.target.value: kwarg_rbnode.value.to_python()
+        for kwarg_rbnode in column_rbnode.call.value
+        } \
+        if column_rbnode.call is not None \
+        else {}
+    value_type = openfisca_data.value_type_by_column_name.get(column_name)
+    assert value_type is not None, column_name
+    if column_rbnode.call is not None:
+        if 'val_type' in column_kwargs:
+            value_type = column_kwargs['val_type']
+    default_value = column_kwargs.get('default')
 
     label_rbnode = rbn.find_class_attribute(rbnode, name='label')
     label = to_unicode(label_rbnode.to_python()) if label_rbnode is not None else None
@@ -334,6 +346,7 @@ def visit_class(rbnode, context):
         'docstring': formula_dict.get('docstring'),
         'entity': entity_name,
         'formula': formula_dict.get('formula_ofnode'),
+        'is_period_size_independent': is_period_size_independent,
         'label': label,
         'name': variable_name,
         'output_period': formula_dict.get('output_period_ofnode'),

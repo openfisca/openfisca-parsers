@@ -29,7 +29,6 @@
 from toolz.curried import map
 from toolz.curried.operator import attrgetter
 
-from . import openfisca_data
 from .contexts import FILE
 
 
@@ -55,11 +54,6 @@ def find_class_attribute(class_rbnode, name):
     return assignment_rbnode.value if assignment_rbnode is not None else None
 
 
-def find_column_default_value(column_rbnode):
-    default_rbnode = column_rbnode.find('call_argument', target=lambda rbnode: rbnode.value == 'default')
-    return default_rbnode.value.to_python() if default_rbnode is not None else None
-
-
 def find_dependencies(rbnodes):
     calculate_rbnodes = rbnodes('atomtrailers', value=is_simulation_calculate)
     return list(map(
@@ -80,26 +74,6 @@ def find_parameters(rbnodes):
         lambda rbnode: '.'.join(map(lambda node1: node1.value, rbnode[3:])),
         legislation_at_rbnodes,
         ))
-
-
-def get_kwargs_as_dict(rbnodes):
-    kwargs = {
-        rbnode.target.value: to_python(rbnode.value)
-        for rbnode in rbnodes
-        }
-
-    return kwargs
-
-
-def get_value_type(column_rbnode):
-    column_name = column_rbnode.name.value
-    value_type = openfisca_data.value_type_by_column_name.get(column_name)
-    assert value_type is not None, column_name
-    if column_rbnode.call is not None:
-        kwargs = get_kwargs_as_dict(column_rbnode.call.value)
-        if 'val_type' in kwargs:
-            return kwargs['val_type']
-    return value_type
 
 
 def is_legislation_at(rbnodes):
@@ -125,10 +99,3 @@ def is_sum_by_entity(rbnodes):
 def is_cast_from_entity_to_roles(rbnodes):
     """Detects self.cast_from_entity_to_role(...) or self.cast_from_entity_to_roles(...) calls."""
     return len(rbnodes) >= 3 and rbnodes[0].value == 'self' and rbnodes[1].value.startswith('cast_from_entity_to_role')
-
-
-def to_python(rbnode):
-    if rbnode.type == 'string':
-        return rbnode.to_python()
-    else:
-        return rbnode

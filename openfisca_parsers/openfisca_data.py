@@ -54,4 +54,5 @@ def get_entity_name(entity_class_name):
 value_type_by_column_name = {
     'FloatCol': 'float',
     'IntCol': 'int',
+    'PeriodSizeIndependentIntCol': 'int',
     }

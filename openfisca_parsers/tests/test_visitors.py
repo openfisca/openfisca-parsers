@@ -137,7 +137,7 @@ class var1(Variable):
 def test_variable_class_without_formula():
     source_code = '''\
 class rfr_n_1(Variable):
-    column = IntCol(val_type = "monetary")
+    column = IntCol
     entity_class = FoyersFiscaux
     label = u"Revenu fiscal de référence année n - 1"
 '''
@@ -146,6 +146,22 @@ class rfr_n_1(Variable):
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
     assert_equal(ofnode['name'], 'rfr_n_1')
+    assert_equal(ofnode['value_type'], 'int')
+    assert_not_in('formula', ofnode)
+
+
+def test_variable_class_with_period_size_independent_column_and_monetary_column():
+    source_code = '''\
+class nbptr_n_2(Variable):
+    column = PeriodSizeIndependentIntCol(val_type = "monetary")
+    entity_class = FoyersFiscaux
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['name'], 'nbptr_n_2')
+    assert_equal(ofnode['is_period_size_independent'], True)
     assert_equal(ofnode['value_type'], 'monetary')
     assert_not_in('formula', ofnode)
 
