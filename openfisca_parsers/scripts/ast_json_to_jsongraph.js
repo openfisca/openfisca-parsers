@@ -50,7 +50,7 @@ function referenceKeys (schema, entity) {
 
 function main (fileContent) {
   const data = JSON.parse(fileContent)
-  if (!data.result || !data.entities) {
+  if (data.result === null || data.entities === null) {
     throw new Error('Provide a normalized AST file (see normalize_ast_json.js script)')
   }
   // Build nodes and edges
