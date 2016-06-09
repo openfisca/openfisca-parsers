@@ -301,7 +301,6 @@ def visit_class(rbnode, context):
 
     column_rbnode = rbn.find_class_attribute(rbnode, name='column')
     column_name = column_rbnode.name.value
-    is_period_size_independent = column_name == 'PeriodSizeIndependentIntCol'
     column_kwargs = {
         kwarg_rbnode.target.value: kwarg_rbnode.value.to_python()
         for kwarg_rbnode in column_rbnode.call.value
@@ -310,10 +309,13 @@ def visit_class(rbnode, context):
         else {}
     value_type = openfisca_data.value_type_by_column_name.get(column_name)
     assert value_type is not None, column_name
-    if column_rbnode.call is not None:
-        if 'val_type' in column_kwargs:
-            value_type = column_kwargs['val_type']
+    if 'val_type' in column_kwargs:
+        value_type = column_kwargs['val_type']
+        if column_name == 'AgeCol' and value_type == 'months':
+            value_type = 'age_in_months'
     default_value = column_kwargs.get('default')
+
+    is_period_size_independent = column_name in ('AgeCol', 'PeriodSizeIndependentIntCol')
 
     label_rbnode = rbn.find_class_attribute(rbnode, name='label')
     label = to_unicode(label_rbnode.to_python()) if label_rbnode is not None else None

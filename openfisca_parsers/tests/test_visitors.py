@@ -150,7 +150,7 @@ class rfr_n_1(Variable):
     assert_not_in('formula', ofnode)
 
 
-def test_variable_class_with_period_size_independent_column_and_monetary_column():
+def test_variable_class_with_period_size_independent_and_monetary_column():
     source_code = '''\
 class nbptr_n_2(Variable):
     column = PeriodSizeIndependentIntCol(val_type = "monetary")
@@ -163,6 +163,40 @@ class nbptr_n_2(Variable):
     assert_equal(ofnode['name'], 'nbptr_n_2')
     assert_equal(ofnode['is_period_size_independent'], True)
     assert_equal(ofnode['value_type'], 'monetary')
+    assert_not_in('formula', ofnode)
+
+
+def test_variable_class_with_age_column():
+    source_code = '''\
+class age(Variable):
+    column = AgeCol(val_type = "age")
+    entity_class = Individus
+    label = u"Âge (en années)"
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['name'], 'age')
+    assert_equal(ofnode['is_period_size_independent'], True)
+    assert_equal(ofnode['value_type'], 'age')
+    assert_not_in('formula', ofnode)
+
+
+def test_variable_class_with_age_in_months_column():
+    source_code = '''\
+class age_en_mois(Variable):
+    column = AgeCol(val_type = "months")
+    entity_class = Individus
+    label = u"Âge (en années)"
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['name'], 'age_en_mois')
+    assert_equal(ofnode['is_period_size_independent'], True)
+    assert_equal(ofnode['value_type'], 'age_in_months')
     assert_not_in('formula', ofnode)
 
 
