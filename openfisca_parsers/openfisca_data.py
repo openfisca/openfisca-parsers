@@ -51,10 +51,7 @@ def get_entity_name(entity_class_name):
         }[entity_class_name]
 
 
-def get_variable_type(column_class_name):
-    variable_type = {
-        'FloatCol': 'float',
-        'IntCol': 'int',
-        }.get(column_class_name)
-    assert variable_type is not None
-    return variable_type
+value_type_by_column_name = {
+    'FloatCol': 'float',
+    'IntCol': 'int',
+    }

@@ -23,7 +23,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from nose.tools import assert_equal, assert_not_equal
+from nose.tools import assert_equal, assert_not_equal, assert_not_in
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
@@ -134,7 +134,23 @@ class var1(Variable):
     assert_equal(ofnode['output_period']['operator'], 'this_year')
 
 
-def test_variable_class():
+def test_variable_class_without_formula():
+    source_code = '''\
+class rfr_n_1(Variable):
+    column = IntCol(val_type = "monetary")
+    entity_class = FoyersFiscaux
+    label = u"Revenu fiscal de référence année n - 1"
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['name'], 'rfr_n_1')
+    assert_equal(ofnode['value_type'], 'monetary')
+    assert_not_in('formula', ofnode)
+
+
+def test_variable_class_with_formula():
     source_code = '''\
 class var1(Variable):
     column = FloatCol

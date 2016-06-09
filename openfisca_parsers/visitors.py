@@ -300,7 +300,7 @@ def visit_class(rbnode, context):
     variable_name = rbnode.name
 
     column_rbnode = rbn.find_class_attribute(rbnode, name='column')
-    variable_type = openfisca_data.get_variable_type(column_rbnode.name.value)
+    value_type = rbn.get_value_type(column_rbnode)
     default_value = rbn.find_column_default_value(column_rbnode)
 
     label_rbnode = rbn.find_class_attribute(rbnode, name='label')
@@ -339,7 +339,7 @@ def visit_class(rbnode, context):
         'output_period': formula_dict.get('output_period_ofnode'),
         'start_date': start_date,
         'stop_date': stop_date,
-        'variable_type': variable_type,
+        'value_type': value_type,
         }
     variable_ofnode = context[VARIABLES].get(variable_name)
     if variable_ofnode is None:
