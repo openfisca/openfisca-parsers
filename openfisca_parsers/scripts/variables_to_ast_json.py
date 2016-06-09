@@ -66,7 +66,11 @@ def parse_source_file(source_file_path, on_parse_error='show', variable_names=No
             if on_parse_error == 'hide':
                 pass
             else:
-                message = u'Error parsing OpenFisca Variable "{}"'.format(variable_name)
+                message = u'Error parsing OpenFisca Variable "{}" at {}:{}'.format(
+                    variable_name,
+                    source_file_path,
+                    variable_class_rbnode.absolute_bounding_box.top_left.line,
+                    )
                 if on_parse_error == 'abort':
                     log.error(message)
                     raise
