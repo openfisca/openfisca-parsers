@@ -80,14 +80,12 @@ def visit_rbnode(rbnode, context):
         raise NotImplementedError(u'Visitor not declared for type="{type}", source="{source}"\n{template}'.format(
             source=rbnode,
             template=u'''\
-=============================================
 def visit_{}(rbnode, context):
     rbnode.help()
     import ipdb; ipdb.set_trace()
     return ofn.make_ofnode({{
         'type': '',
         }}, rbnode, context)
-=============================================
 '''.format(rbnode.type),
             type=rbnode.type,
             ))
