@@ -46,7 +46,7 @@ npm run normalize isf_imm_bati.json
 Parse and normalize and display both:
 
 ```
-python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee (tty) | npm run normalize
+python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati | tee (tty) | npm run normalize
 ```
 
 Visualize graph:
@@ -57,16 +57,16 @@ sudo apt install xdot
 sudo npm install -g jgf-dot
 
 # To visualize `isf.py`:
-xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
+xdot (python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
 # To draw Python variables as labels in graph:
-xdot (python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py --with-pyvariables | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
+xdot (python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --with-pyvariables | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
 # To visualize the graph produced by a test:
 xdot (nosetests -s openfisca_parsers.tests.test_visitors:test_split_by_roles | npm run normalize | npm run ast_to_jsongraph | jgfdot | psub)
 
 # In many steps:
-python openfisca_parsers/scripts/variables_to_ast_json.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.json
+python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.json
 npm run normalize isf.json > isf.normalized.json
 npm run ast_to_jsongraph isf.normalized.json > isf.graph.json
 jgfdot isf.graph.json > isf.dot
