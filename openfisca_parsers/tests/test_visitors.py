@@ -288,9 +288,7 @@ class var1(Variable):
 
 
 def test_reduce_binary_operator_1():
-    source_code = '''\
-1 + 2 + 3
-'''
+    source_code = '1 + 2 + 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
@@ -302,9 +300,7 @@ def test_reduce_binary_operator_1():
 
 
 def test_reduce_binary_operator_2():
-    source_code = '''\
-1 + 2 + 3 + 4
-'''
+    source_code = '1 + 2 + 3 + 4'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
@@ -316,9 +312,7 @@ def test_reduce_binary_operator_2():
 
 
 def test_reduce_binary_operator_3():
-    source_code = '''\
-(1 + 2) + (3 + 4)
-'''
+    source_code = '(1 + 2) + (3 + 4)'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
@@ -330,9 +324,7 @@ def test_reduce_binary_operator_3():
 
 
 def test_reduce_binary_operator_4():
-    source_code = '''\
-1 + 2 - 3
-'''
+    source_code = '1 + 2 - 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
@@ -347,9 +339,7 @@ def test_reduce_binary_operator_4():
 
 
 def test_reduce_binary_operator_5():
-    source_code = '''\
-1 - 2 - 3
-'''
+    source_code = '1 - 2 - 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
