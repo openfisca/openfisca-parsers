@@ -78,8 +78,6 @@ dot -Tpdf -o isf_imm_non_bati.pdf (npm run normalize isf_imm_non_bati.json | npm
 
 ## Tests
 
-Simply run:
-
 ```
 $ nosetests
 ```
