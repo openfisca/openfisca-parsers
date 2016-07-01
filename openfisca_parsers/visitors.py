@@ -428,8 +428,8 @@ def visit_name(rbnode, context):
         # name is a local variable of the function.
         return context[LOCAL_PYVARIABLES][name]
     else:
-        # name is a function, imported or builtin.
-        # TODO name could be another thing, like a Python module.
+        # name is a function name, imported or builtin.
+        # TODO name could be another thing, like a Python module name.
         # Create a stub which will be completed by visit_atomtrailers when parsing function call arguments.
         return ofn.make_ofnode({
             '_stub': True,
