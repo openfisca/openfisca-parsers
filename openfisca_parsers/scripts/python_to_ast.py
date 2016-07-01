@@ -28,22 +28,16 @@
 
 
 import argparse
-import json
 import logging
 import sys
 
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, rbnodes, visitors
+from openfisca_parsers.ofnodes import show_json
 
 
 log = logging.getLogger(__name__)
-
-# Helpers
-
-
-def show_json(ofnodes):
-    print(json.dumps(ofnodes, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
 
 
 # Parsing functions

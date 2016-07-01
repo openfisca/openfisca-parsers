@@ -26,9 +26,21 @@
 """Functions to navigate in OpenFisca AST nodes."""
 
 
+import json
+
 from toolz.curried import assoc, concatv, valfilter
 
-from . import openfisca_data
+# from . import openfisca_data
+
+
+# Input / output functions
+
+
+def show_json(ofnodes):
+    print(json.dumps(ofnodes, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
+
+
+# OpenFisca nodes creation / manipulation functions
 
 
 def make_ofnode(items, rbnode, context, with_rbnode=False):
@@ -43,34 +55,24 @@ def make_ofnode(items, rbnode, context, with_rbnode=False):
     return valfilter(lambda value: value is not None, ofnode)
 
 
-def make_sum_of_value_for_all_roles_ofnode(ofnode, rbnode, context):
-    """This is the expanded version of sum_by_entity."""
-    entity_name = context['current_class_visitor']['entity_name']
-    all_roles = openfisca_data.get_all_roles(entity_name)
-    value_for_role_ofnodes = list(map(
-        lambda role: make_ofnode({
-            'type': 'ValueForRole',
-            'role': role,
-            'variable': ofnode,
-            }, rbnode, context),
-        all_roles,
-        ))
-    sum_ofnode = make_ofnode({
-        'type': 'ArithmeticOperator',
-        'operator': '+',
-        'operands': value_for_role_ofnodes,
-        }, rbnode, context)
-    return sum_ofnode
-
-
-def update_ofnode_stub(ofnode, merge):
-    assert '_stub' in ofnode, ofnode
-    ofnode.update(valfilter(lambda value: value is not None, merge))
-    del ofnode['_stub']
-    return ofnode
-
-
-# Graph optimization functions
+# def make_sum_of_value_for_all_roles_ofnode(ofnode, rbnode, context):
+#     """This is the expanded version of sum_by_entity."""
+#     entity_name = context['current_class_visitor']['entity_name']
+#     all_roles = openfisca_data.get_all_roles(entity_name)
+#     value_for_role_ofnodes = list(map(
+#         lambda role: make_ofnode({
+#             'type': 'ValueForRole',
+#             'role': role,
+#             'variable': ofnode,
+#             }, rbnode, context),
+#         all_roles,
+#         ))
+#     sum_ofnode = make_ofnode({
+#         'type': 'ArithmeticOperator',
+#         'operator': '+',
+#         'operands': value_for_role_ofnodes,
+#         }, rbnode, context)
+#     return sum_ofnode
 
 
 def reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode):
@@ -89,3 +91,10 @@ def reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode):
     if operand2_ofnode['type'] == 'ArithmeticOperator' and operand2_ofnode['operator'] == operator:
         operands_ofnodes = list(concatv(operands_ofnodes[:-1], operand2_ofnode['operands']))
     return operands_ofnodes
+
+
+def update_ofnode_stub(ofnode, merge):
+    assert '_stub' in ofnode, ofnode
+    ofnode.update(valfilter(lambda value: value is not None, merge))
+    del ofnode['_stub']
+    return ofnode

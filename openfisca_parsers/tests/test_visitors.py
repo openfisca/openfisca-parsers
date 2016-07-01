@@ -28,7 +28,7 @@ from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
 from openfisca_parsers.contexts import WITH_PYVARIABLES
-from openfisca_parsers.scripts.variables_to_ast_json import show_json
+from openfisca_parsers.ofnodes import show_json
 
 
 def test_legislation_at():
