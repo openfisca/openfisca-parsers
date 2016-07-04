@@ -355,3 +355,29 @@ def test_reduce_binary_operator_5():
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['type'], 'ArithmeticOperator')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operator'], '-')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operands'][0]['type'], 'Constant')
+
+
+def test_reduce_binary_operator_6():
+    source_code = '1 * 2 * 3'
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '*')
+    assert_equal(len(ofnode['operands']), 3)
+    assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
+
+
+def test_reduce_binary_operator_7():
+    source_code = '1 * 2 / 3'
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json(ofnode)
+    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operator'], '*')
+    assert_equal(len(ofnode['operands']), 2)
+    assert_equal(ofnode['operands'][0]['type'], 'Constant')
+    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operator'], '/')
