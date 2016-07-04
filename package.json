@@ -3,14 +3,16 @@
   "version": "0.0.1",
   "description": "OpenFisca Parsers is part of the [OpenFisca](http://www.openfisca.fr/) project, a versatile microsimulation free software.",
   "scripts": {
-    "ast_to_jsongraph": "babel-node openfisca_parsers/scripts/ast_to_jsongraph.js",
-    "normalize": "babel-node openfisca_parsers/scripts/normalize_ast.js"
+    "ast_to_asg": "babel-node openfisca_parsers/scripts/ast_to_asg.js",
+    "asg_to_nasg": "babel-node openfisca_parsers/scripts/asg_to_nasg.js",
+    "nasg_to_jgf": "babel-node openfisca_parsers/scripts/nasg_to_jgf.js",
+    "ast_to_dot": "npm run ast_to_asg | npm run asg_to_nasg | npm run nasg_to_jgf | jgfdot"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openfisca/openfisca-parsers.git"
   },
-  "author": "",
+  "author": "Christophe Benz <christophe.benz@data.gouv.fr>",
   "license": "AGPL-3.0",
   "bugs": {
     "url": "https://github.com/openfisca/openfisca-parsers/issues"
@@ -20,7 +22,9 @@
     "babel-cli": "^6.9.0",
     "babel-plugin-transform-object-rest-spread": "^6.8.0",
     "babel-preset-es2015": "^6.9.0",
+    "jgf-dot": "^1.1.0",
     "normalizr": "^2.1.0",
+    "ramda": "^0.21.0",
     "read-file-stdin": "^0.2.1"
   },
   "devDependencies": {

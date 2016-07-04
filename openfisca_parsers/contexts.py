@@ -38,7 +38,6 @@ LOCAL_SPLIT_BY_ROLES = 'split_by_role_infos_by_pyvariable_name'
 
 # Global to tax and benefit system.
 PARAMETERS = 'ofnode_by_parameter_path'
-VARIABLES = 'ofnode_by_variable_name'
 WITH_PYVARIABLES = 'add_pyvariables_to_variable_ofnodes'
 
 
@@ -57,7 +56,6 @@ def create(initial_context={}):
         {
             'generate_shortid': shortid_generator.generate,
             PARAMETERS: {},
-            VARIABLES: {},
             },
         initial_context,
         )

@@ -43,19 +43,11 @@ log = logging.getLogger(__name__)
 # Parsing functions
 
 
-def parse_source_file(source_file_path, on_parse_error='show', variable_names=None, with_pyvariables=False):
-    with open(source_file_path) as source_file:
-        source_code = source_file.read()
-    red = RedBaron(source_code)
-    context = contexts.create(initial_context={
-        contexts.FILE: source_file_path,
-        contexts.WITH_PYVARIABLES: with_pyvariables,
-        })
-    variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
+def iter_variable_ofnodes(variable_class_rbnodes, context, on_parse_error, source_file_path):
     for variable_class_rbnode in variable_class_rbnodes:
         variable_name = variable_class_rbnode.name
         try:
-            visitors.visit_rbnode(variable_class_rbnode, context)
+            yield visitors.visit_rbnode(variable_class_rbnode, context)
         except (AssertionError, NotImplementedError) as exc:
             if on_parse_error == 'hide':
                 pass
@@ -72,8 +64,19 @@ def parse_source_file(source_file_path, on_parse_error='show', variable_names=No
                     assert on_parse_error == 'show', on_parse_error
                     # log.exception(textwrap.indent(u'{}: {}'.format(message, exc)), '    ')  # Python 3
                     log.exception(u'{}: {}'.format(message, exc))
-    del context[contexts.FILE]
-    return context
+
+
+def parse_source_file(source_file_path, on_parse_error='show', variable_names=None, with_pyvariables=False):
+    with open(source_file_path) as source_file:
+        source_code = source_file.read()
+    red = RedBaron(source_code)
+    context = contexts.create(initial_context={
+        contexts.FILE: source_file_path,
+        contexts.WITH_PYVARIABLES: with_pyvariables,
+        })
+    variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
+    variable_ofnodes = list(iter_variable_ofnodes(variable_class_rbnodes, context, on_parse_error, source_file_path))
+    return variable_ofnodes
 
 
 # Main function for script
@@ -92,13 +95,13 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
-    context = parse_source_file(
+    variable_ofnodes = parse_source_file(
         args.source_file_path,
         on_parse_error=args.on_parse_error,
         variable_names=args.variable_names,
         with_pyvariables=args.with_pyvariables,
         )
-    show_json(context[contexts.VARIABLES])
+    show_json(variable_ofnodes)
 
     return 0
 

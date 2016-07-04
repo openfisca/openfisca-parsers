@@ -7,6 +7,7 @@ export const ParameterAtInstant = new Schema('ParameterAtInstant')
 export const Period = new Schema('Period')
 export const PeriodOperator = new Schema('PeriodOperator')
 export const Variable = new Schema('Variable')
+export const VariableReference = new Schema('VariableReference')
 export const ValueForEntity = new Schema('ValueForEntity')
 export const ValueForPeriod = new Schema('ValueForPeriod')
 export const ValueForRole = new Schema('ValueForRole')
@@ -66,7 +67,7 @@ ValueForEntity.define({
 
 ValueForPeriod.define({
   period: periodOrPeriodOperator,
-  variable: Variable
+  variable: unionOf({Variable, VariableReference})
 })
 
 ValueForRole.define({

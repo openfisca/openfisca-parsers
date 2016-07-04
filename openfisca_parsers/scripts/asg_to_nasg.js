@@ -5,8 +5,7 @@ import read from 'read-file-stdin'
 
 import * as schemas from './schemas'
 
-function main (fileContent) {
-  const node = JSON.parse(fileContent)
+function main (node) {
   const schema = node.type ? schemas[node.type] : valuesOf(schemas.Variable)
   const result = normalize(node, schema)
   console.log(JSON.stringify(result, null, 2))
@@ -14,5 +13,6 @@ function main (fileContent) {
 
 read(process.argv[2], (err, buffer) => {
   if (err) throw err
-  main(buffer)
+  const node = JSON.parse(buffer)
+  main(node)
 })

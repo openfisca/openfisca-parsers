@@ -13,7 +13,8 @@ const attributesByEntityType = {
   Parameter: {shape: 'box', style: 'filled'},
   ValueForEntity: {shape: 'trapezium', penwidth: 3},
   ValueForRole: {shape: 'trapezium'},
-  Variable: {shape: 'oval', style: 'filled'}
+  Variable: {shape: 'oval', style: 'filled'},
+  VariableReference: {shape: 'oval', style: 'dotted'}
 }
 
 function checkTarget (target) {
@@ -30,7 +31,8 @@ function renderLabel (entity) {
     PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
     ValueForEntity: entity => `${entity.type}\n${entity.operator}`,
     ValueForRole: entity => `${entity.type}\n${entity.role}`,
-    Variable: entity => `${entity.type}\n${entity.name}@${entity.entity || 'unknown'}${entity._stub ? '\n(not parsed yet)' : ''}`
+    Variable: entity => `${entity.type}\n${entity.name}@${entity.entity}`,
+    VariableReference: entity => `${entity.type}\n${entity.name}`
   }
   return functionByEntityType.hasOwnProperty(entity.type)
       ? functionByEntityType[entity.type](entity)
@@ -48,8 +50,7 @@ function referenceKeys (schema, entity) {
   })
 }
 
-function main (fileContent) {
-  const data = JSON.parse(fileContent)
+function main (data) {
   if (data.result === null || data.entities === null) {
     throw new Error('Provide a normalized AST file (see normalize_ast_json.js script)')
   }
@@ -144,5 +145,6 @@ function main (fileContent) {
 
 read(process.argv[2], (err, buffer) => {
   if (err) throw err
-  main(buffer)
+  const data = JSON.parse(buffer)
+  main(data)
 })

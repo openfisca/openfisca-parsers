@@ -236,7 +236,7 @@ class var1(Variable):
     show_json(ofnode)
     assert_equal(ofnode['formula']['type'], 'ValueForRole')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'VariableReference')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')
 
 
@@ -258,7 +258,7 @@ class var1(Variable):
     assert_equal(ofnode['formula']['type'], 'ValueForEntity')
     assert_equal(ofnode['formula']['operator'], '+')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'VariableReference')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'rag')
 
 
@@ -283,7 +283,7 @@ class var1(Variable):
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForRole')
     assert_equal(ofnode['formula']['variable']['role'], 'PREF')
     assert_equal(ofnode['formula']['variable']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['variable']['variable']['type'], 'VariableReference')
     assert_equal(ofnode['formula']['variable']['variable']['variable']['name'], 'taxe_habitation')
 
 

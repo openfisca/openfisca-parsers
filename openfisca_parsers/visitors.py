@@ -43,7 +43,7 @@ from toolz.curried.operator import attrgetter
 import redbaron.nodes
 
 from . import ofnodes as ofn, openfisca_data, rbnodes as rbn
-from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, VARIABLES, WITH_PYVARIABLES
+from .contexts import LOCAL_PYVARIABLES, LOCAL_SPLIT_BY_ROLES, PARAMETERS, WITH_PYVARIABLES
 
 
 # RedBaron nodes helpers
@@ -185,20 +185,16 @@ def visit_atomtrailers(rbnode, context):
         period_pyvariable_name = rbnode.call[1].value.value
         # Ensure there is no more atom in trailer like ".x.y"" in "simulation.calculate('variable_name', period).x.y".
         assert len(rbnode.value) == 3, rbn.debug(rbnode, context)
-        variable_ofnode = context[VARIABLES].get(variable_name)
-        if variable_ofnode is None:
-            # Create a stub which will be completed when the real Variable class will be parsed.
-            variable_ofnode = ofn.make_ofnode({
-                '_stub': True,
-                'type': 'Variable',
-                'name': variable_name,
-                }, rbnode, context)
+        variable_reference_ofnode = ofn.make_ofnode({
+            'type': 'VariableReference',
+            'name': variable_name,
+            }, rbnode, context)
         is_holder = rbnode.value[1].value == 'compute'
         return ofn.make_ofnode({
             'type': 'ValueForPeriod',
             '_is_holder': is_holder or None,
             'period': context[LOCAL_PYVARIABLES][period_pyvariable_name],
-            'variable': variable_ofnode,
+            'variable': variable_reference_ofnode,
             }, rbnode, context)
     elif rbn.is_legislation_at(rbnode.value):
         period_ofnode = visit_rbnode(rbnode.call[0].value, context)
@@ -354,13 +350,7 @@ def visit_class(rbnode, context):
         'stop_date': stop_date,
         'value_type': value_type,
         }
-    variable_ofnode = context[VARIABLES].get(variable_name)
-    if variable_ofnode is None:
-        variable_ofnode = ofn.make_ofnode(ofnode_dict, rbnode, context)
-        context[VARIABLES][variable_name] = variable_ofnode
-    else:
-        # variable_ofnode is a stub which was created by visit_atomtrailers.
-        ofn.update_ofnode_stub(variable_ofnode, merge=ofnode_dict)
+    variable_ofnode = ofn.make_ofnode(ofnode_dict, rbnode, context)
 
     if def_rbnode is not None:
         if context.get(WITH_PYVARIABLES):
