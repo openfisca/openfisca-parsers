@@ -1,11 +1,11 @@
 import {Schema, arrayOf, unionOf as normalizrUnionOf, valuesOf} from 'normalizr'
 
-export const ArithmeticOperator = new Schema('ArithmeticOperator')
+export const ArithmeticOperation = new Schema('ArithmeticOperation')
 export const Constant = new Schema('Constant')
 export const Parameter = new Schema('Parameter')
 export const ParameterAtInstant = new Schema('ParameterAtInstant')
 export const Period = new Schema('Period')
-export const PeriodOperator = new Schema('PeriodOperator')
+export const PeriodOperation = new Schema('PeriodOperation')
 export const Variable = new Schema('Variable')
 export const VariableReference = new Schema('VariableReference')
 export const ValueForEntity = new Schema('ValueForEntity')
@@ -17,7 +17,7 @@ function unionOf (obj) {
 }
 
 export const formula = unionOf({
-  ArithmeticOperator,
+  ArithmeticOperation,
   Constant,
   ParameterAtInstant,
   ValueForEntity,
@@ -25,39 +25,39 @@ export const formula = unionOf({
   ValueForRole
 })
 
-export const periodOrPeriodOperator = unionOf({
+export const periodOrPeriodOperation = unionOf({
   Period,
-  PeriodOperator
+  PeriodOperation
 })
 
 const pyvariable = unionOf({
-  ArithmeticOperator,
+  ArithmeticOperation,
   Constant,
   Parameter,
   ParameterAtInstant,
   Period,
-  PeriodOperator,
+  PeriodOperation,
   ValueForEntity,
   ValueForPeriod,
   ValueForRole
 })
 
-ArithmeticOperator.define({
+ArithmeticOperation.define({
   operands: arrayOf(formula)
 })
 
 ParameterAtInstant.define({
-  instant: PeriodOperator,
+  instant: PeriodOperation,
   parameter: Parameter
 })
 
-PeriodOperator.define({
-  operand: periodOrPeriodOperator
+PeriodOperation.define({
+  operand: periodOrPeriodOperation
 })
 
 Variable.define({
   formula,
-  output_period: periodOrPeriodOperator,
+  output_period: periodOrPeriodOperation,
   _pyvariables: valuesOf(pyvariable)
 })
 
@@ -66,7 +66,7 @@ ValueForEntity.define({
 })
 
 ValueForPeriod.define({
-  period: periodOrPeriodOperator,
+  period: periodOrPeriodOperation,
   variable: unionOf({Variable, VariableReference})
 })
 

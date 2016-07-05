@@ -68,16 +68,16 @@ def make_ofnode(items, rbnode, context, with_rbnode=False):
 #         all_roles,
 #         ))
 #     sum_ofnode = make_ofnode({
-#         'type': 'ArithmeticOperator',
+#         'type': 'ArithmeticOperation',
 #         'operator': '+',
 #         'operands': value_for_role_ofnodes,
 #         }, rbnode, context)
 #     return sum_ofnode
 
 
-def reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode):
+def reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode):
     """
-    Reduce many binary ArithmeticOperator nodes into one equivalent n-ary ArithmeticOperator.
+    Reduce many binary ArithmeticOperation nodes into one equivalent n-ary ArithmeticOperation.
 
     Examples:
         +(a, b) => +(a, b)
@@ -86,9 +86,9 @@ def reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode):
         +(+(a, b), +(c, d)) => +(a, b, c, d)
     """
     operands_ofnodes = [operand1_ofnode, operand2_ofnode]
-    if operand1_ofnode['type'] == 'ArithmeticOperator' and operand1_ofnode['operator'] == operator:
+    if operand1_ofnode['type'] == 'ArithmeticOperation' and operand1_ofnode['operator'] == operator:
         operands_ofnodes = list(concatv(operand1_ofnode['operands'], [operand2_ofnode]))
-    if operand2_ofnode['type'] == 'ArithmeticOperator' and operand2_ofnode['operator'] == operator:
+    if operand2_ofnode['type'] == 'ArithmeticOperation' and operand2_ofnode['operator'] == operator:
         operands_ofnodes = list(concatv(operands_ofnodes[:-1], operand2_ofnode['operands']))
     return operands_ofnodes
 

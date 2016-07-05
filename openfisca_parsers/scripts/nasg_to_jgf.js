@@ -8,7 +8,7 @@ import read from 'read-file-stdin'
 import * as schemas from './schemas'
 
 const attributesByEntityType = {
-  ArithmeticOperator: {shape: 'circle'},
+  ArithmeticOperation: {shape: 'circle'},
   Constant: {shape: 'oval'},
   Parameter: {shape: 'box', style: 'filled'},
   ValueForEntity: {shape: 'trapezium', penwidth: 3},
@@ -25,10 +25,10 @@ function checkTarget (target) {
 
 function renderLabel (entity) {
   const functionByEntityType = {
-    ArithmeticOperator: entity => entity.operator,
+    ArithmeticOperation: entity => entity.operator,
     Constant: entity => `${entity.type} ${entity.value}`,
     Parameter: entity => entity.path.join('.'),
-    PeriodOperator: entity => `${entity.type}\n${entity.operator}`,
+    PeriodOperation: entity => `${entity.type}\n${entity.operator}`,
     ValueForEntity: entity => `${entity.type}\n${entity.operator}`,
     ValueForRole: entity => `${entity.type}\n${entity.role}`,
     Variable: entity => `${entity.type}\n${entity.name}@${entity.entity}`,

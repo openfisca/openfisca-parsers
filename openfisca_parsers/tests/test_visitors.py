@@ -102,7 +102,7 @@ class var1(Variable):
     context = contexts.create(initial_context={WITH_PYVARIABLES: True})
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['formula']['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['formula']['type'], 'ArithmeticOperation')
     left_ofnode, right_ofnode = ofnode['formula']['operands']
     assert_equal(left_ofnode['type'], 'ParameterAtInstant')
     assert_equal(right_ofnode['type'], 'ParameterAtInstant')
@@ -130,7 +130,7 @@ class var1(Variable):
     show_json(ofnode)
     assert_equal(ofnode['formula']['type'], 'Constant')
     assert_equal(ofnode['formula']['value'], 0)
-    assert_equal(ofnode['output_period']['type'], 'PeriodOperator')
+    assert_equal(ofnode['output_period']['type'], 'PeriodOperation')
     assert_equal(ofnode['output_period']['operator'], 'this_year')
 
 
@@ -287,97 +287,97 @@ class var1(Variable):
     assert_equal(ofnode['formula']['variable']['variable']['variable']['name'], 'taxe_habitation')
 
 
-def test_reduce_binary_operator_1():
+def test_reduce_nested_binary_operators_1():
     source_code = '1 + 2 + 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
     assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
-def test_reduce_binary_operator_2():
+def test_reduce_nested_binary_operators_2():
     source_code = '1 + 2 + 3 + 4'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
     assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
-def test_reduce_binary_operator_3():
+def test_reduce_nested_binary_operators_3():
     source_code = '(1 + 2) + (3 + 4)'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
     assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
-def test_reduce_binary_operator_4():
+def test_reduce_nested_binary_operators_4():
     source_code = '1 + 2 - 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
     assert_equal(ofnode['operands'][0]['type'], 'Constant')
     assert_equal(ofnode['operands'][1]['type'], 'Constant')
-    assert_equal(ofnode['operands'][2]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][2]['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operands'][2]['operator'], '-')
 
 
-def test_reduce_binary_operator_5():
+def test_reduce_nested_binary_operators_5():
     source_code = '1 - 2 - 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 2)
     assert_equal(ofnode['operands'][0]['type'], 'Constant')
-    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operands'][1]['operator'], '-')
-    assert_equal(ofnode['operands'][1]['operands'][0]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operands'][0]['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][0]['type'], 'Constant')
-    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operator'], '-')
     assert_equal(ofnode['operands'][1]['operands'][0]['operands'][1]['operands'][0]['type'], 'Constant')
 
 
-def test_reduce_binary_operator_6():
+def test_reduce_nested_binary_operators_6():
     source_code = '1 * 2 * 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '*')
     assert_equal(len(ofnode['operands']), 3)
     assert all(operand_ofnode['type'] == 'Constant' for operand_ofnode in ofnode['operands']), ofnode['operands']
 
 
-def test_reduce_binary_operator_7():
+def test_reduce_nested_binary_operators_7():
     source_code = '1 * 2 / 3'
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
     show_json(ofnode)
-    assert_equal(ofnode['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '*')
     assert_equal(len(ofnode['operands']), 2)
     assert_equal(ofnode['operands'][0]['type'], 'Constant')
-    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperator')
+    assert_equal(ofnode['operands'][1]['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operands'][1]['operator'], '/')

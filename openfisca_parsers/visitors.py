@@ -119,14 +119,14 @@ def visit_binary_operator(rbnode, context):
         # Transform a binary "-" operator in a binary "+" whose second operand is wrapped in a unary "-".
         operator = '+'
         operand2_ofnode = ofn.make_ofnode({
-            'type': 'ArithmeticOperator',
+            'type': 'ArithmeticOperation',
             'operator': '-',
             'operands': [operand2_ofnode],
             }, rbnode, context)
-    operands_ofnodes = ofn.reduce_binary_operator(operator, operand1_ofnode, operand2_ofnode)
+    operands_ofnodes = ofn.reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode)
     # operands_ofnodes = [operand1_ofnode, operand2_ofnode]
     return ofn.make_ofnode({
-        'type': 'ArithmeticOperator',
+        'type': 'ArithmeticOperation',
         'operator': operator,
         'operands': operands_ofnodes,
         }, rbnode, context)
@@ -154,10 +154,10 @@ def visit_atomtrailers(rbnode, context):
 
     def apply_rbnode_to_ofnode(ofnode, rbnode):
         """Return a new ofnode resulting from applying a rbnode to an ofnode."""
-        if ofnode['type'] in ('Period', 'PeriodOperator'):
+        if ofnode['type'] in ('Period', 'PeriodOperation'):
             if rbnode.value in ('start', 'this_year'):
                 return ofn.make_ofnode({
-                    'type': 'PeriodOperator',
+                    'type': 'PeriodOperation',
                     'operator': rbnode.value,
                     'operand': ofnode,
                     }, rbnode, context)
@@ -278,7 +278,7 @@ def visit_atomtrailers(rbnode, context):
             assert rbnode[1].type == 'call', rbn.debug(rbnode, context)
             call_arguments_rbnodes = rbnode.call.value
             # name_ofnode is a stub which was created by visit_name.
-            assert name_ofnode['type'] == 'ArithmeticOperator', name_ofnode
+            assert name_ofnode['type'] == 'ArithmeticOperation', name_ofnode
             operands_ofnodes = [
                 visit_rbnode(call_argument_rbnode.value, context)
                 for call_argument_rbnode in call_arguments_rbnodes
@@ -364,7 +364,7 @@ def visit_class(rbnode, context):
 
 def visit_comparison(rbnode, context):
     return ofn.make_ofnode({
-        'type': 'ArithmeticOperator',
+        'type': 'ArithmeticOperation',
         'operator': rbnode.value.first,
         'operands': [
             visit_rbnode(rbnode.first, context),
@@ -423,7 +423,7 @@ def visit_name(rbnode, context):
         # Create a stub which will be completed by visit_atomtrailers when parsing function call arguments.
         return ofn.make_ofnode({
             '_stub': True,
-            'type': 'ArithmeticOperator',
+            'type': 'ArithmeticOperation',
             'operator': name,
             'operands': None,
             }, rbnode, context)
@@ -442,7 +442,7 @@ def visit_unitary_operator(rbnode, context):
     assert operator == '-', operator
     operand = visit_rbnode(rbnode.target, context)
     return ofn.make_ofnode({
-        'type': 'ArithmeticOperator',
+        'type': 'ArithmeticOperation',
         'operator': operator,
         'operands': [operand],
         }, rbnode, context)
