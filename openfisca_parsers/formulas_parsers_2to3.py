@@ -736,7 +736,7 @@ class Call(AbstractWrapper):
                             return parser.CompactNode(
                                 is_reference = bool(reference),
                                 parser = parser,
-                                value = parser.tax_benefit_system.legislation_json,
+                                value = parser.tax_benefit_system.get_legislation(),
                                 )
         elif issubclass(parser.Date, expected):
             function = self.subject.guess(parser.Variable)
@@ -2081,7 +2081,7 @@ class Module(AbstractWrapper):
                 value = parser.Type(parser = parser, value = np.int32)),
             izip = parser.Variable(container = self, name = u'izip', parser = parser),
             law = parser.Variable(container = self, name = u'law', parser = parser,
-                value = parser.CompactNode(parser = parser, value = parser.tax_benefit_system.legislation_json)),
+                value = parser.CompactNode(parser = parser, value = parser.tax_benefit_system.get_legislation())),
             len = parser.Variable(container = self, name = u'len', parser = parser),
             log = parser.Variable(container = self, name = u'log', parser = parser,
                 value = parser.Logger(parser = parser)),
