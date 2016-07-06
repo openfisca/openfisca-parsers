@@ -2981,7 +2981,7 @@ class Parser(conv.State):
                             unicode(value).encode('utf-8'))
                     item_value = self.parse_value(dict_children[child_index + 2], container = container)
                     child_index += 3
-                    if dict_children[child_index].type == tokens.COMMA:
+                    if (child_index < len(dict_children)) and dict_children[child_index].type == tokens.COMMA:
                         child_index += 1
                     else:
                         assert child_index == len(dict_children), \
