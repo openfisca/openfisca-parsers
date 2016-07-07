@@ -1,30 +1,19 @@
 #! /usr/bin/env node
 
-import {curry, has, indexBy, map, prop, type} from 'ramda'
+import {assoc, has, indexBy, pipe, prop} from 'ramda'
 import read from 'read-file-stdin'
 
-// Traversal functions
+import {traverse} from './traverse'
 
-const traverse = curry((visitor, state, node) => {
-  const nodeJSType = type(node)
-  return nodeJSType === 'Array'
-    ? map(traverse(visitor, state), node)
-    : nodeJSType === 'Object'
-      ? map(traverse(visitor, state), visit(visitor, state, node))
-      : node
-})
+// Visitors
 
-function visit (visitor, state, node) {
-  const {type} = node
-  if (type in visitor) {
-    Object.freeze(node)
-    return visitor[type](node, state)
-  } else {
-    return node
+const addUniqueIdentifiersVisitor = {
+  __ALL__ (node, state) {
+    const nodeWithId = assoc('id', state.nextId, node)
+    state.nextId += 1
+    return nodeWithId
   }
 }
-
-// Visitor
 
 const resolveReferencesVisitor = {
   VariableReference (node, state) {
@@ -43,18 +32,27 @@ const resolveReferencesVisitor = {
   }
 }
 
+function addUniqueIdentifiers (nodes) {
+  const state = {nextId: 0}
+  return traverse(addUniqueIdentifiersVisitor, state, nodes)
+}
+
+function resolveReferences (nodes) {
+  const variableByName = indexBy(prop('name'), nodes)
+  const state = {onVariableNotFound: 'keep', variableByName}
+  return traverse(resolveReferencesVisitor, state, nodes)
+}
+
 // Main function
 
-function main (nodes, {onVariableNotFound = 'keep'}) {
-  const variableByName = indexBy(prop('name'), nodes)
-  const state = {onVariableNotFound, variableByName}
-  const transformedNode = traverse(resolveReferencesVisitor, state, nodes)
+function main (nodes) {
+  const transform = pipe(addUniqueIdentifiers, resolveReferences)
+  const transformedNode = transform(nodes)
   console.log(JSON.stringify(transformedNode, null, 2))
 }
 
 read(process.argv[2], (err, buffer) => {
   if (err) throw err
   const nodes = JSON.parse(buffer)
-  const opts = {}
-  main(nodes, opts)
+  main(nodes)
 })

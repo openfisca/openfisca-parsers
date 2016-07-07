@@ -43,13 +43,11 @@ def show_json(ofnodes):
 # OpenFisca nodes creation / manipulation functions
 
 
-def make_ofnode(items, rbnode, context, with_rbnode=False):
+def make_ofnode(ofnode, rbnode, context, with_rbnode=False):
     """
-    Create and return a new ofnode with a generated id.
+    Create and return a new ofnode, removing keys associated to None values.
     with_rbnode: if True, reference the rbnode from the '_rbnode' key in the ofnode.
     """
-    id = context['generate_shortid']()
-    ofnode = assoc(items, 'id', id)
     if with_rbnode:
         ofnode = assoc(ofnode, '_rbnode', rbnode)
     return valfilter(lambda value: value is not None, ofnode)

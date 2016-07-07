@@ -41,20 +41,9 @@ PARAMETERS = 'ofnode_by_parameter_path'
 WITH_PYVARIABLES = 'add_pyvariables_to_variable_ofnodes'
 
 
-class ShortIdGenerator(object):
-    next_shortid = 0
-
-    def generate(self):
-        result = self.next_shortid
-        self.next_shortid += 1
-        return result
-
-
 def create(initial_context={}):
-    shortid_generator = ShortIdGenerator()
     return merge(
         {
-            'generate_shortid': shortid_generator.generate,
             PARAMETERS: {},
             },
         initial_context,
