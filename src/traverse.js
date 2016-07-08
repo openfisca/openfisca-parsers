@@ -2,7 +2,7 @@ import {curry, map, type} from 'ramda'
 
 // Traversal functions
 
-export const traverse = curry((visitor, state, node) => {
+const traverse = curry((visitor, state, node) => {
   const nodeJSType = type(node)
   return nodeJSType === 'Array'
     ? map(traverse(visitor, state), node)
@@ -31,3 +31,5 @@ function visit (visitor, state, node) {
     return node
   }
 }
+
+export default traverse
