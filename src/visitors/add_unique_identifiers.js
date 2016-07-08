@@ -10,9 +10,9 @@ export const visitor = {
   }
 }
 
-export const getInitialState = (node) => ({nextId: 0})
+export const getInitialState = (rootNode) => ({nextId: 0})
 
-export function addUniqueIdentifiers (node) {
-  const state = getInitialState(node)
-  return traverse(visitor, state, node)
+export function addUniqueIdentifiers (rootNode) {
+  const state = getInitialState(rootNode)
+  return traverse(visitor, state, rootNode)
 }

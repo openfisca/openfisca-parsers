@@ -48,9 +48,9 @@ export const visitor = {
   }
 }
 
-export const getInitialState = (node) => ({debug: false})
+export const getInitialState = (rootNode) => ({debug: false})
 
-export function mToOpenFisca (node) {
-  const state = getInitialState(node)
-  return traverse(visitor, state, node)
+export function mToOpenFisca (rootNode) {
+  const state = getInitialState(rootNode)
+  return traverse(visitor, state, rootNode)
 }

@@ -1,13 +1,17 @@
 #! /usr/bin/env node
 
-import {normalize, valuesOf} from 'normalizr'
+import {normalize} from 'normalizr'
+import {type} from 'ramda'
 import read from 'read-file-stdin'
 
 import * as schemas from './schemas'
 
 function main (node) {
-  const schema = node.type ? schemas[node.type] : valuesOf(schemas.Variable)
-  const result = normalize(node, schema)
+  if (type(node) !== 'Object' || node.type !== 'Module') {
+    throw new TypeError('JSON data must be an object like {type: "Module", ...}')
+  }
+  // Skip Module node to simplify graph.
+  const result = normalize(node.variables, schemas.variables)
   console.log(JSON.stringify(result, null, 2))
 }
 

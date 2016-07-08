@@ -19,12 +19,12 @@ export const visitor = {
   }
 }
 
-export const getInitialState = (node) => ({
+export const getInitialState = (rootNode) => ({
   onVariableNotFound: 'keep',
-  variableByName: indexBy(prop('name'), node)
+  variableByName: indexBy(prop('name'), rootNode.variables)
 })
 
-export function resolveReferences (node) {
-  const state = getInitialState(node)
-  return traverse(visitor, state, node)
+export function resolveReferences (rootNode) {
+  const state = getInitialState(rootNode)
+  return traverse(visitor, state, rootNode)
 }

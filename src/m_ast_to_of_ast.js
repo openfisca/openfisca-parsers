@@ -1,5 +1,6 @@
 #! /usr/bin/env node
 
+import {type} from 'ramda'
 import read from 'read-file-stdin'
 
 import {mToOpenFisca} from './visitors/m_to_openfisca'
@@ -7,6 +8,9 @@ import {mToOpenFisca} from './visitors/m_to_openfisca'
 // Example: jq --slurpfile chap1 json/chap-1.json '. + $chap1[].variables' json/isf.json > json/isf_with_chap1.json
 
 function main (nodes) {
+  if (type(nodes) !== 'Array') {
+    throw new TypeError('JSON data must be an array')
+  }
   const moduleNode = {
     type: 'Module',
     regles: nodes

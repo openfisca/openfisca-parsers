@@ -29,6 +29,7 @@
 
 import argparse
 import logging
+import os
 import sys
 
 from redbaron import RedBaron
@@ -101,7 +102,12 @@ def main():
         variable_names=args.variable_names,
         with_pyvariables=args.with_pyvariables,
         )
-    show_json(variable_ofnodes)
+    module_ofnode = {
+        'type': 'Module',
+        'name': os.path.basename(args.source_file_path),
+        'variables': variable_ofnodes,
+        }
+    show_json(module_ofnode)
 
     return 0
 
