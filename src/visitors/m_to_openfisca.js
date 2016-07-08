@@ -1,8 +1,10 @@
 import {addIndex, chain, concat, head, prop, tail, map} from 'ramda'
 
+import traverse from '../traverse'
+
 const mapIndexed = addIndex(map)
 
-export default {
+export const visitor = {
   Module (node, state) {
     return {
       type: 'Module',
@@ -44,4 +46,11 @@ export default {
       name: node.value
     }
   }
+}
+
+export const getInitialState = (node) => ({debug: false})
+
+export function mToOpenFisca (node) {
+  const state = getInitialState(node)
+  return traverse(visitor, state, node)
 }

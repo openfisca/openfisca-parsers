@@ -1,6 +1,8 @@
 import {has, indexBy, prop} from 'ramda'
 
-export default {
+import traverse from '../traverse'
+
+export const visitor = {
   VariableReference (node, state) {
     const {name} = node
     if (has(name, state.variableByName)) {
@@ -21,3 +23,8 @@ export const getInitialState = (node) => ({
   onVariableNotFound: 'keep',
   variableByName: indexBy(prop('name'), node)
 })
+
+export function resolveReferences (node) {
+  const state = getInitialState(node)
+  return traverse(visitor, state, node)
+}
