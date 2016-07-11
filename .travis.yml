@@ -11,7 +11,7 @@ deploy:
   skip_cleanup: true
   script: ./release-tag.sh
   on:
-    branch: master
+    branch: releasing
 - provider: pypi
   user: openfisca-bot
   password:
