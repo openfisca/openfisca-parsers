@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3 – [diff](https://github.com/openfisca/openfisca-core/compare/0.5.2...0.5.3)
+
+* Update numpy dependency to 1.11
+
 ## 0.5.2 – [diff](https://github.com/openfisca/openfisca-parsers/compare/0.5.1...0.5.2)
 
 * Apply core API changes introduced by openfisca-core 2.0
