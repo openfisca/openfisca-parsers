@@ -1005,7 +1005,7 @@ class Call(JuliaCompilerMixin, formulas_parsers_2to3.Call):
                             hint = parser.CompactNode(
                                 is_reference = bool(reference),
                                 parser = parser,
-                                value = parser.tax_benefit_system.legislation_json,
+                                value = parser.tax_benefit_system.get_legislation(),
                                 ),
                             named_arguments = dict(reference = reference) if reference is not None else None,
                             parser = parser,
