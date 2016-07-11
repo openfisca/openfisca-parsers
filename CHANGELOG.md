@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.5.1.dev0 - next release
+## 0.5.1 – [diff](https://github.com/openfisca/openfisca-parsers/compare/0.5.0...0.5.1)
 
-* TODO Fill this changes list while developing
+* Force updating version number and CHANGELOG.md before merging on master
+* Release tag and Pip version automatically
 
 ## 0.5.0
 
