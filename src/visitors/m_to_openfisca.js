@@ -1,4 +1,4 @@
-import {addIndex, chain, concat, head, prop, tail, map} from 'ramda'
+import {addIndex, chain, concat, head, prop, tail, map, pluck, indexBy, pipe} from 'ramda'
 
 import traverse from '../traverse'
 
@@ -48,9 +48,16 @@ export const visitor = {
   }
 }
 
-export const getInitialState = (rootNode) => ({debug: false})
+export const getInitialState = (rootNode) => ({
+  debug: false,
+  formulaNodeByName: pipe(
+    chain(prop('formulas')),
+    indexBy(prop('name'))
+  )(rootNode.regles)
+})
 
 export function mToOpenFisca (rootNode) {
   const state = getInitialState(rootNode)
+  debugger
   return traverse(visitor, state, rootNode)
 }
