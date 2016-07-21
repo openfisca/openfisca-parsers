@@ -1,8 +1,6 @@
-import {addIndex, chain, concat, head, prop, tail, map, pluck, indexBy, pipe} from 'ramda'
+import {chain, prop, indexBy, pipe} from 'ramda'
 
 import traverse from '../traverse'
-
-const mapIndexed = addIndex(map)
 
 export const visitor = {
   Module (node, state) {
@@ -18,32 +16,12 @@ export const visitor = {
       formula: node.expression
     }
   },
-  sum_expression (node, state) {
-    const operandsHead = head(node.operands)
-    const operandsTail = tail(node.operands)
-    const operands = concat(
-      [operandsHead],
-      mapIndexed(
-        (operator, index) => operator === '+'
-          ? operandsTail[index]
-          : {
-            type: 'ArithmeticOperation',
-            operator: '-',
-            operands: operandsTail[index]
-          },
-        node.operators
-      )
-    )
-    return {
-      type: 'ArithmeticOperation',
-      operator: '+',
-      operands
-    }
-  },
   symbol (node, state) {
+    const formula = state.formulaNodeByName[node.value]
     return {
-      type: 'VariableReference',
-      name: node.value
+      type: 'Variable',
+      name: node.value,
+      formula
     }
   }
 }
@@ -58,6 +36,5 @@ export const getInitialState = (rootNode) => ({
 
 export function mToOpenFisca (rootNode) {
   const state = getInitialState(rootNode)
-  debugger
   return traverse(visitor, state, rootNode)
 }
