@@ -27,8 +27,7 @@ from nose.tools import assert_equal, assert_not_equal, assert_not_in
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
-from openfisca_parsers.contexts import WITH_PYVARIABLES
-from openfisca_parsers.ofnodes import show_json
+from openfisca_parsers.json_graph import show_json_graph
 
 
 def test_legislation_at():
@@ -42,9 +41,9 @@ class var1(Variable):
         return period, P
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
     assert_equal(ofnode['formula']['parameter']['path'], [])
 
@@ -60,9 +59,9 @@ class var1(Variable):
         return period, P
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
     assert_equal(ofnode['formula']['parameter']['path'], ['aaa', 'bbb'])
 
@@ -78,9 +77,9 @@ class var1(Variable):
         return period, P.aaa.bbb
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ParameterAtInstant')
     assert_equal(ofnode['formula']['parameter']['path'], ['aaa', 'bbb'])
 
@@ -99,9 +98,9 @@ class var1(Variable):
         return period, xxx + zzz
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ArithmeticOperation')
     left_ofnode, right_ofnode = ofnode['formula']['operands']
     assert_equal(left_ofnode['type'], 'ParameterAtInstant')
@@ -110,8 +109,7 @@ class var1(Variable):
     assert_equal(right_ofnode['parameter']['type'], 'Parameter')
     assert_equal(left_ofnode['parameter']['path'], ['aaa', 'bbb', 'xxx'])
     assert_equal(right_ofnode['parameter']['path'], ['aaa', 'bbb', 'yyy', 'zzz'])
-    assert_not_equal(left_ofnode['id'], right_ofnode['id'])
-    assert_not_equal(left_ofnode['parameter']['id'], right_ofnode['parameter']['id'])
+    assert_not_equal(left_ofnode, right_ofnode)
 
 
 def test_period_this_year():
@@ -125,9 +123,9 @@ class var1(Variable):
         return period, 0
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'Constant')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'PeriodOperation')
@@ -144,7 +142,7 @@ class rfr_n_1(Variable):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['name'], 'rfr_n_1')
     assert_equal(ofnode['value_type'], 'int')
     assert_not_in('formula', ofnode)
@@ -159,7 +157,7 @@ class nbptr_n_2(Variable):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['name'], 'nbptr_n_2')
     assert_equal(ofnode['is_period_size_independent'], True)
     assert_equal(ofnode['value_type'], 'monetary')
@@ -176,7 +174,7 @@ class age(Variable):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['name'], 'age')
     assert_equal(ofnode['is_period_size_independent'], True)
     assert_equal(ofnode['value_type'], 'age')
@@ -193,14 +191,14 @@ class age_en_mois(Variable):
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['name'], 'age_en_mois')
     assert_equal(ofnode['is_period_size_independent'], True)
     assert_equal(ofnode['value_type'], 'age_in_months')
     assert_not_in('formula', ofnode)
 
 
-def test_variable_class_with_formula():
+def test_variable_class_noop_with_formula():
     source_code = '''\
 class var1(Variable):
     column = FloatCol
@@ -210,13 +208,33 @@ class var1(Variable):
         return period, 0
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['name'], 'var1')
     assert_equal(ofnode['formula']['type'], 'Constant')
     assert_equal(ofnode['formula']['value'], 0)
     assert_equal(ofnode['output_period']['type'], 'Period')
+
+
+def test_simulation_calculate():
+    source_code = '''\
+class var1(Variable):
+    column = FloatCol
+    entity_class = Familles
+
+    def function(self, simulation, period):
+        crds = simulation.calculate('crds', period)
+        return period, crds
+'''
+    rbnode = RedBaron(source_code)[0]
+    context = contexts.create()
+    ofnode = visitors.visit_rbnode(rbnode, context)
+    show_json_graph(ofnode)
+    assert_equal(ofnode['formula']['type'], 'ValueForPeriod')
+    assert_equal(ofnode['formula']['period']['type'], 'Period')
+    assert_equal(ofnode['formula']['variable']['type'], 'Variable')
+    assert_equal(ofnode['formula']['variable']['name'], 'crds')
 
 
 def test_split_by_roles():
@@ -231,12 +249,13 @@ class var1(Variable):
         return period, crds[VOUS]
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ValueForRole')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['type'], 'VariableReference')
+    assert_equal(ofnode['formula']['variable']['period']['type'], 'Period')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'crds')
 
 
@@ -252,13 +271,13 @@ class var1(Variable):
         return period, rag
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ValueForEntity')
     assert_equal(ofnode['formula']['operator'], '+')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['type'], 'VariableReference')
+    assert_equal(ofnode['formula']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['name'], 'rag')
 
 
@@ -275,15 +294,15 @@ class var1(Variable):
         return period, taxe_habitation
 '''
     rbnode = RedBaron(source_code)[0]
-    context = contexts.create(initial_context={WITH_PYVARIABLES: True})
+    context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['formula']['type'], 'ValueForEntity')
     assert_equal(ofnode['formula']['operator'], '+')
     assert_equal(ofnode['formula']['variable']['type'], 'ValueForRole')
     assert_equal(ofnode['formula']['variable']['role'], 'PREF')
     assert_equal(ofnode['formula']['variable']['variable']['type'], 'ValueForPeriod')
-    assert_equal(ofnode['formula']['variable']['variable']['variable']['type'], 'VariableReference')
+    assert_equal(ofnode['formula']['variable']['variable']['variable']['type'], 'Variable')
     assert_equal(ofnode['formula']['variable']['variable']['variable']['name'], 'taxe_habitation')
 
 
@@ -292,7 +311,7 @@ def test_reduce_nested_binary_operators_1():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
@@ -304,7 +323,7 @@ def test_reduce_nested_binary_operators_2():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
@@ -316,7 +335,7 @@ def test_reduce_nested_binary_operators_3():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 4)
@@ -328,7 +347,7 @@ def test_reduce_nested_binary_operators_4():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 3)
@@ -343,7 +362,7 @@ def test_reduce_nested_binary_operators_5():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '+')
     assert_equal(len(ofnode['operands']), 2)
@@ -362,7 +381,7 @@ def test_reduce_nested_binary_operators_6():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '*')
     assert_equal(len(ofnode['operands']), 3)
@@ -374,7 +393,7 @@ def test_reduce_nested_binary_operators_7():
     rbnode = RedBaron(source_code)[0]
     context = contexts.create()
     ofnode = visitors.visit_rbnode(rbnode, context)
-    show_json(ofnode)
+    show_json_graph(ofnode)
     assert_equal(ofnode['type'], 'ArithmeticOperation')
     assert_equal(ofnode['operator'], '*')
     assert_equal(len(ofnode['operands']), 2)

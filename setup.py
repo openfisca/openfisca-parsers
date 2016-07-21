@@ -57,7 +57,7 @@ setup(
         'Biryani[datetimeconv] >= 0.10.1',
         'OpenFisca-Core ~= 2.0.2',
         'numpy >= 1.11',
-        'toolz',
+        'toolz >= 0.8',
         ],
     packages = find_packages(exclude=['openfisca_parsers.tests*']),
     tests_require = ['nose'],

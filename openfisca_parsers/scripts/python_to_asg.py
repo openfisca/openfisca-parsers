@@ -24,7 +24,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-"""Convert Python formulas to JSON using RedBaron."""
+"""
+Convert OpenFisca Python source files containing simulation variables
+to an OpenFisca ASG (abstract semantic graph)
+using the RedBaron library.
+"""
 
 
 import argparse
@@ -35,6 +39,7 @@ import sys
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, rbnodes, visitors
+from openfisca_parsers.json_graph import asg_to_json_graph
 from openfisca_parsers.ofnodes import show_json
 
 
@@ -44,11 +49,11 @@ log = logging.getLogger(__name__)
 # Parsing functions
 
 
-def iter_variable_ofnodes(variable_class_rbnodes, context, on_parse_error, source_file_path):
+def visit_variable_class_rbnodes(variable_class_rbnodes, context, on_parse_error, source_file_path):
     for variable_class_rbnode in variable_class_rbnodes:
         variable_name = variable_class_rbnode.name
         try:
-            yield visitors.visit_rbnode(variable_class_rbnode, context)
+            visitors.visit_rbnode(variable_class_rbnode, context)
         except (AssertionError, NotImplementedError) as exc:
             if on_parse_error == 'hide':
                 pass
@@ -67,17 +72,14 @@ def iter_variable_ofnodes(variable_class_rbnodes, context, on_parse_error, sourc
                     log.exception(u'{}: {}'.format(message, exc))
 
 
-def parse_source_file(source_file_path, on_parse_error='show', variable_names=None, with_pyvariables=False):
+def parse_source_file(source_file_path, on_parse_error='show', variable_names=None):
     with open(source_file_path) as source_file:
         source_code = source_file.read()
     red = RedBaron(source_code)
-    context = contexts.create(initial_context={
-        contexts.FILE: source_file_path,
-        contexts.WITH_PYVARIABLES: with_pyvariables,
-        })
+    context = contexts.create()
     variable_class_rbnodes = rbnodes.find_all_variable_classes(red, names=variable_names)
-    variable_ofnodes = list(iter_variable_ofnodes(variable_class_rbnodes, context, on_parse_error, source_file_path))
-    return variable_ofnodes
+    visit_variable_class_rbnodes(variable_class_rbnodes, context, on_parse_error, source_file_path)
+    return context
 
 
 # Main function for script
@@ -91,23 +93,21 @@ def main():
     parser.add_argument('--variable', dest='variable_names', metavar='VARIABLE',
                         nargs='+', help=u'Parse only this simulation Variable(s)')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
-    parser.add_argument('--with-pyvariables', action='store_true', default=False,
-                        help="Add Python variable names to Variable nodes")
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
-    variable_ofnodes = parse_source_file(
+    context = parse_source_file(
         args.source_file_path,
         on_parse_error=args.on_parse_error,
         variable_names=args.variable_names,
-        with_pyvariables=args.with_pyvariables,
         )
     module_ofnode = {
         'type': 'Module',
         'name': os.path.basename(args.source_file_path),
-        'variables': variable_ofnodes,
+        'variables': context['variable_by_name'].values(),
         }
-    show_json(module_ofnode)
+    json_graph = asg_to_json_graph(module_ofnode)
+    show_json(json_graph)
 
     return 0
 

@@ -23,14 +23,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-"""Functions to navigate in OpenFisca AST nodes."""
+"""Functions to navigate in OpenFisca ASG nodes."""
 
 
 import json
 
 from toolz.curried import assoc, concatv, valfilter
-
-# from . import openfisca_data
 
 
 # Input / output functions
@@ -42,35 +40,19 @@ def show_json(ofnodes):
 
 # OpenFisca nodes creation / manipulation functions
 
+def is_ofnode(value):
+    return isinstance(value, dict) and 'type' in value
+
 
 def make_ofnode(ofnode, rbnode, context, with_rbnode=False):
     """
-    Create and return a new ofnode, removing keys associated to None values.
+    Create and return a new ofnode with a generated id, removing items with None values.
     with_rbnode: if True, reference the rbnode from the '_rbnode' key in the ofnode.
     """
     if with_rbnode:
         ofnode = assoc(ofnode, '_rbnode', rbnode)
-    return valfilter(lambda value: value is not None, ofnode)
-
-
-# def make_sum_of_value_for_all_roles_ofnode(ofnode, rbnode, context):
-#     """This is the expanded version of sum_by_entity."""
-#     entity_name = context['current_class_visitor']['entity_name']
-#     all_roles = openfisca_data.get_all_roles(entity_name)
-#     value_for_role_ofnodes = list(map(
-#         lambda role: make_ofnode({
-#             'type': 'ValueForRole',
-#             'role': role,
-#             'variable': ofnode,
-#             }, rbnode, context),
-#         all_roles,
-#         ))
-#     sum_ofnode = make_ofnode({
-#         'type': 'ArithmeticOperation',
-#         'operator': '+',
-#         'operands': value_for_role_ofnodes,
-#         }, rbnode, context)
-#     return sum_ofnode
+    ofnode = valfilter(lambda value: value is not None, ofnode)
+    return ofnode
 
 
 def reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode):

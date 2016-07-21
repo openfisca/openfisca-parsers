@@ -29,13 +29,10 @@
 from toolz.curried import map
 from toolz.curried.operator import attrgetter
 
-from .contexts import FILE
-
 
 def debug(rbnode, context=None):
-    return u'{} at {}:{}'.format(
+    return u'{} at line {}'.format(
         rbnode.dumps(),
-        context.get(FILE, '<unknown file>'),
         rbnode.absolute_bounding_box.top_left.line,
         )
 

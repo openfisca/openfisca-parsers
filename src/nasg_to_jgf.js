@@ -14,8 +14,7 @@ const attributesByEntityType = {
   Parameter: {shape: 'box', style: 'filled'},
   ValueForEntity: {shape: 'trapezium', penwidth: 3},
   ValueForRole: {shape: 'trapezium'},
-  Variable: {shape: 'oval', style: 'filled'},
-  VariableReference: {shape: 'oval', style: 'dotted'}
+  Variable: {shape: 'oval', style: 'filled'}
 }
 
 function checkTarget (target) {
@@ -32,8 +31,7 @@ function renderLabel (entity) {
     PeriodOperation: entity => `${entity.type}\n${entity.operator}`,
     ValueForEntity: entity => `${entity.type}\n${entity.operator}`,
     ValueForRole: entity => `${entity.type}\n${entity.role}`,
-    Variable: entity => `${entity.type}\n${entity.name}@${entity.entity}`,
-    VariableReference: entity => `${entity.type}\n${entity.name}`
+    Variable: entity => `${entity.type}\n${entity.name}@${entity.entity}`
   }
   return functionByEntityType.hasOwnProperty(entity.type)
       ? functionByEntityType[entity.type](entity)

@@ -26,25 +26,9 @@
 """Functions to manage context used in RedBaron nodes visitors."""
 
 
-from toolz.curried import merge
-
-
-# Contextual to whole file parsing.
-FILE = 'current_source_file_path'
-
-# Contextual to visit_def.
-LOCAL_PYVARIABLES = 'ofnode_by_local_pyvariable_name'
-LOCAL_SPLIT_BY_ROLES = 'split_by_role_infos_by_pyvariable_name'
-
-# Global to tax and benefit system.
-PARAMETERS = 'ofnode_by_parameter_path'
-WITH_PYVARIABLES = 'add_pyvariables_to_variable_ofnodes'
-
-
-def create(initial_context={}):
-    return merge(
-        {
-            PARAMETERS: {},
-            },
-        initial_context,
-        )
+def create():
+    return {
+        'parameter_by_path': {},
+        'pyvariable_by_name': {},
+        'variable_by_name': {},
+        }

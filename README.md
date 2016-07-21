@@ -42,38 +42,38 @@ sudo apt install xdot
 Extract the AST from Python source code:
 
 ```
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py
 
 # Hide parse errors
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --on-parse-error=hide
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py --on-parse-error=hide
 
 # Limit to a variable name
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati
 
 # Limit to many variable names
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati isf_imm_non_bati
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py --variable isf_imm_bati isf_imm_non_bati
 ```
 
 Transform the AST to an ASG:
 
 ```
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.ast.json
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py > isf.ast.json
 npm run ast_to_asg isf.ast.json
 ```
 
 Visualize ASG:
 
 ```
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py | \
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py | \
   npm run ast_to_asg | npm run asg_to_nasg | npm run nasg_to_jgf | jgfdot > isf.dot
 xdot isf.dot
 
 # Or the shortcut:
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run ast_to_dot > isf.dot
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run ast_to_dot > isf.dot
 xdot isf.dot
 
 # To draw Python variables as labels in graph:
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py --with-pyvariables | npm run ast_to_dot > isf.dot
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py --with-pyvariables | npm run ast_to_dot > isf.dot
 xdot isf.dot
 
 # To visualize the graph produced by a unit test:
@@ -81,7 +81,7 @@ nosetests -s openfisca_parsers.tests.test_visitors:test_split_by_roles | npm run
 xdot isf.dot
 
 # To save a PDF:
-python openfisca_parsers/scripts/python_to_ast.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run ast_to_dot > isf.dot
+python openfisca_parsers/scripts/python_to_asg.py ~/Dev/openfisca/openfisca-france/**/isf.py | npm run ast_to_dot > isf.dot
 dot -Tpdf -o isf.pdf isf.dot
 ```
 

@@ -1,4 +1,4 @@
-import {Schema, arrayOf, unionOf as normalizrUnionOf, valuesOf} from 'normalizr'
+import {Schema, arrayOf, unionOf as normalizrUnionOf} from 'normalizr'
 
 export const ArithmeticOperation = new Schema('ArithmeticOperation')
 export const Constant = new Schema('Constant')
@@ -8,7 +8,6 @@ export const ParameterAtInstant = new Schema('ParameterAtInstant')
 export const Period = new Schema('Period')
 export const PeriodOperation = new Schema('PeriodOperation')
 export const Variable = new Schema('Variable')
-export const VariableReference = new Schema('VariableReference')
 export const ValueForEntity = new Schema('ValueForEntity')
 export const ValueForPeriod = new Schema('ValueForPeriod')
 export const ValueForRole = new Schema('ValueForRole')
@@ -64,8 +63,8 @@ PeriodOperation.define({
 
 Variable.define({
   formula,
-  output_period: periodOrPeriodOperation,
-  _pyvariables: valuesOf(pyvariable)
+  output_period: periodOrPeriodOperation
+  // _pyvariables: valuesOf(pyvariable)
 })
 
 ValueForEntity.define({
@@ -74,7 +73,7 @@ ValueForEntity.define({
 
 ValueForPeriod.define({
   period: periodOrPeriodOperation,
-  variable: unionOf({Variable, VariableReference})
+  variable: Variable
 })
 
 ValueForRole.define({
