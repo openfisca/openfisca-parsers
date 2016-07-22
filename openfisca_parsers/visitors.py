@@ -101,10 +101,15 @@ def visit_binary_operator(rbnode, context):
             'operator': 'negate',
             'operand': operand2_ofnode,
             }, rbnode, context)
-    operands_ofnodes = ofn.reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode)
+    ofnode_operator = {
+        '+': 'sum',
+        '*': 'product',
+        '&': 'and',
+        }.get(operator, operator)
+    operands_ofnodes = ofn.reduce_nested_binary_operators(ofnode_operator, operand1_ofnode, operand2_ofnode)
     return ofn.make_ofnode({
         'type': 'ArithmeticOperation',
-        'operator': operator,
+        'operator': ofnode_operator,
         'operands': operands_ofnodes,
         }, rbnode, context)
 
