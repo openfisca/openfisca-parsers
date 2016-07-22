@@ -26,7 +26,7 @@
 """Functions to convert an OpenFisca ASG to a JSON Graph format data structure."""
 
 
-from toolz.curried import dissoc, merge
+from toolz.curried import dissoc, merge, valfilter
 
 from .ofnodes import is_ofnode, show_json
 
@@ -72,7 +72,10 @@ def asg_to_json_graph(root_ofnode):
             'id': ofnode_id,
             'label': u'{}\n{}'.format(
                 ofnode['type'],
-                ofnode.get('name', ofnode.get('value', '')),
+                '\n'.join(map(
+                    lambda item: u'{} = {}'.format(*item),
+                    valfilter(lambda val: not isinstance(val, (dict, list)), dissoc(ofnode, 'type')).items(),
+                    )),
                 ).strip()
             })
         for key, value in ofnode.items():
