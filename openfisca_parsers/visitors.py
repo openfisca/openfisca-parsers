@@ -323,14 +323,15 @@ def visit_class(rbnode, context):
     if def_rbnode is not None:
         input_period_ofnode = ofn.make_ofnode({'type': 'Period'}, rbnode, context)
         input_period_pyvariable_name = 'period'
-        ofn.make_ofnode({
-            'type': 'PythonVariableDeclaration',
-            'name': input_period_pyvariable_name,
-            'value': input_period_ofnode,
-            }, rbnode, context)
         context['pyvariable_by_name'] = {input_period_pyvariable_name: input_period_ofnode}
         context['split_by_role_infos_by_pyvariable_name'] = {}
         formula_dict = visit_rbnode(def_rbnode, context)
+        for pyvariable_name, pyvariable_ofnode in context['pyvariable_by_name'].items():
+            context['pyvariables'].append(ofn.make_ofnode({
+                'type': 'PythonVariableDeclaration',
+                'name': pyvariable_name,
+                'value': pyvariable_ofnode,
+                }, rbnode, context))
         del context['pyvariable_by_name']
         del context['split_by_role_infos_by_pyvariable_name']
         ofnode_dict = merge(ofnode_dict, {

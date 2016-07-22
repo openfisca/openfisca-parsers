@@ -3,10 +3,6 @@
   "version": "0.0.1",
   "description": "OpenFisca Parsers is part of the [OpenFisca](http://www.openfisca.fr/) project, a versatile microsimulation free software.",
   "scripts": {
-    "ast_to_asg": "babel-node src/ast_to_asg.js",
-    "asg_to_nasg": "babel-node src/asg_to_nasg.js",
-    "nasg_to_jgf": "babel-node src/nasg_to_jgf.js",
-    "ast_to_dot": "npm run ast_to_asg | npm run asg_to_nasg | npm run nasg_to_jgf | jgfdot",
     "m_ast_to_of_asg": "babel-node src/m_ast_to_of_asg.js"
   },
   "repository": {
@@ -24,7 +20,6 @@
     "babel-plugin-transform-object-rest-spread": "^6.8.0",
     "babel-preset-es2015": "^6.9.0",
     "jgf-dot": "^1.1.0",
-    "normalizr": "^2.1.0",
     "ramda": "^0.21.0",
     "read-file-stdin": "^0.2.1"
   },
