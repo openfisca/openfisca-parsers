@@ -99,7 +99,11 @@ def asg_to_json_graph(root_ofnode):
                 append_edge(edge)
         nodes.append(jgfnode)
 
-    visit(root_ofnode)
+    if isinstance(root_ofnode, list):
+        for item in root_ofnode:
+            visit(item)
+    else:
+        visit(root_ofnode)
     return {
         'graph': {
             'directed': True,
