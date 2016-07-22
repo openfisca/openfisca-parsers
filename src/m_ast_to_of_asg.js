@@ -3,7 +3,7 @@
 import {pipe, type} from 'ramda'
 import read from 'read-file-stdin'
 
-import {mToOpenFisca} from './visitors/m_to_openfisca'
+import {resolveSymbols} from './visitors/resolve_symbols'
 import {filterApplication} from './visitors/filter_application'
 
 // Example:
@@ -17,7 +17,7 @@ function main (nodes) {
     type: 'Module',
     regles: nodes
   }
-  const transform = pipe(filterApplication('batch'), mToOpenFisca)
+  const transform = pipe(filterApplication('batch'), resolveSymbols)
   const transformedNode = transform(moduleNode)
   console.log(JSON.stringify(transformedNode, null, 2))
 }

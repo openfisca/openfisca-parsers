@@ -34,7 +34,7 @@ export const getInitialState = (rootNode) => ({
   )(rootNode.regles)
 })
 
-export function mToOpenFisca (rootNode) {
+export function resolveSymbols (rootNode) {
   const state = getInitialState(rootNode)
   return traverse(visitor, state, rootNode)
 }
