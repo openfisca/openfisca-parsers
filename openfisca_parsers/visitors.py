@@ -99,7 +99,7 @@ def visit_binary_operator(rbnode, context):
         operand2_ofnode = ofn.make_ofnode({
             'type': 'ArithmeticOperation',
             'operator': 'negate',
-            'operands': [operand2_ofnode],
+            'operand': operand2_ofnode,
             }, rbnode, context)
     operands_ofnodes = ofn.reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode)
     return ofn.make_ofnode({
@@ -178,7 +178,8 @@ def visit_atomtrailers(rbnode, context):
             'variable': variable_ofnode,
             }, rbnode, context)
     elif rbn.is_legislation_at(rbnode.value):
-        period_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        period_operation_ofnode = visit_rbnode(rbnode.call[0].value, context)
+        assert period_operation_ofnode['type'] == 'PeriodOperation', period_operation_ofnode
         parameter_path_rbnodes = rbnode[rbnode.call.index_on_parent + 1:]
         parameter_path_fragments = list(map(attrgetter('value'), parameter_path_rbnodes))
         parameter_path = '.'.join(parameter_path_fragments)
@@ -193,7 +194,7 @@ def visit_atomtrailers(rbnode, context):
         return ofn.make_ofnode({
             'type': 'ParameterAtInstant',
             'parameter': parameter_ofnode,
-            'instant': period_ofnode,
+            'instant': period_operation_ofnode,
             }, rbnode, context)
     elif rbn.is_split_by_roles(rbnode.value):
         holder_ofnode = visit_rbnode(rbnode.call[0].value, context)
@@ -210,7 +211,7 @@ def visit_atomtrailers(rbnode, context):
         assert len(rbnode.call) == 1, rbn.debug(rbnode, context)  # Later "roles" kwargs will be supported.
         return ofn.make_ofnode({
             'type': 'ValueForEntity',
-            'operator': '+',
+            'operator': 'sum',
             'variable': holder_ofnode,
             }, rbnode, context)
     elif rbn.is_cast_from_entity_to_roles(rbnode.value):
@@ -323,7 +324,7 @@ def visit_class(rbnode, context):
         input_period_ofnode = ofn.make_ofnode({'type': 'Period'}, rbnode, context)
         input_period_pyvariable_name = 'period'
         ofn.make_ofnode({
-            'type': 'PythonVariable',
+            'type': 'PythonVariableDeclaration',
             'name': input_period_pyvariable_name,
             'value': input_period_ofnode,
             }, rbnode, context)
