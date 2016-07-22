@@ -58,6 +58,8 @@ setup(
         'OpenFisca-Core ~= 2.0.2',
         'numpy >= 1.11',
         'toolz >= 0.8',
+        'redbaron >= 0.6.1',
+        'openfisca-france >= 4.0.7',
         ],
     packages = find_packages(exclude=['openfisca_parsers.tests*']),
     tests_require = ['nose'],
