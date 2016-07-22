@@ -90,7 +90,10 @@ def main():
     parser.add_argument('source_file_path', help=u'Path of the Python source file to parse')
     parser.add_argument('--on-parse-error', choices=['hide', 'abort', 'show'], default='show',
                         help=u'What to do in case of error while parsing a Variable')
-    parser.add_argument('--no-module-node', action='store_true', default=False, help="Do not include a Module node in the ASG. Helps with visualization.")
+    parser.add_argument('--no-module-node', action='store_true', default=False,
+                        help="Do not include a Module node in the ASG. Helps graph visualization.")
+    parser.add_argument('--no-python-variables', action='store_true', default=False,
+                        help="Do not include PythonVariableDeclaration nodes in the ASG. Helps graph visualization.")
     parser.add_argument('--variable', dest='variable_names', metavar='VARIABLE',
                         nargs='+', help=u'Parse only this simulation Variable(s)')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
@@ -103,13 +106,17 @@ def main():
         variable_names=args.variable_names,
         )
     variable_ofnodes = context['variable_by_name'].values()
+    pyvariable_ofnodes = context['pyvariables']
+    ofnodes = variable_ofnodes
+    if not args.no_python_variables:
+        ofnodes += pyvariable_ofnodes
     if args.no_module_node:
-        json_graph = asg_to_json_graph(variable_ofnodes)
+        json_graph = asg_to_json_graph(ofnodes)
     else:
         module_ofnode = {
             'type': 'Module',
             'name': os.path.basename(args.source_file_path),
-            'variables': context['variable_by_name'].values(),
+            'variables': ofnodes,
             }
         json_graph = asg_to_json_graph(module_ofnode)
     show_json(json_graph)

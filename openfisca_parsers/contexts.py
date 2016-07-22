@@ -29,6 +29,6 @@
 def create():
     return {
         'parameter_by_path': {},
-        'pyvariable_by_name': {},
+        'pyvariables': [],
         'variable_by_name': {},
         }
