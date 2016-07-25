@@ -25,6 +25,7 @@
 
 """Functions to convert an OpenFisca ASG to a JSON Graph format data structure."""
 
+import re
 
 from toolz.curried import dissoc, merge, valfilter
 
@@ -111,3 +112,67 @@ def asg_to_json_graph(root_ofnode):
 
 def show_json_graph(ofnode):
     show_json(asg_to_json_graph(ofnode))
+
+
+def json_graph_to_asg(json_graph):
+    assert json_graph.keys()==['graph']
+    graph = json_graph['graph']
+
+    assert graph['directed']==True
+
+    edges = graph['edges']
+    input_nodes = graph['nodes']
+
+    output_nodes = {}
+
+    for input_node in input_nodes:
+        input_id = input_node['id']
+        del input_node['id']
+
+        output_nodes[input_id] = input_node
+
+    for edge in edges:
+        source = edge['source']
+        target = edge['target']
+        label = edge['label']
+
+        source_node = output_nodes[source]
+        target_node = output_nodes[target]
+
+        if label in ['input_period', 'output_period', 'operand', 'parameter',
+                     'instant', 'variable', 'period', 'formula', 'value']:
+            source_node[label] = target_node
+        else:
+            m = re.match(r'operands\[([0-9]+)\]', label)
+            if m:
+                index = int(m.groups()[0])
+                if 'operands' in source_node.keys():
+                    ops = source_node['operands']
+                    if index < len(ops):
+                        ops[index] = target_node
+                    else:
+                        ops += (index-len(ops))*[None] + [target_node]
+                else:
+                    source_node['operands'] = index*[None] + [target_node]
+            else:
+                raise ValueError('Unknown label : ' + label)
+
+    return output_nodes
+
+def deep_diff(d1, d2, path=""):
+    for k in d1.keys():
+        if not d2.has_key(k):
+            print path, ":"
+            print k + " as key not in d2", "\n"
+        else:
+            if type(d1[k]) is dict:
+                if path == "":
+                    path = k
+                else:
+                    path = path + "->" + k
+                deep_diff(d1[k],d2[k], path)
+            else:
+                if d1[k] != d2[k]:
+                    print path, ":"
+                    print " - ", k," : ", d1[k]
+                    print " + ", k," : ", d2[k]
