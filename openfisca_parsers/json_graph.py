@@ -144,7 +144,7 @@ def json_graph_to_asg(json_graph):
                      'instant', 'variable', 'period', 'formula', 'value']:
             source_node[label] = target_node
         else:
-            m = re.match(r'operands\[([0-9]+)\]', label)
+            m = re.match(r'^operands\[([0-9]+)\]$', label)
             if m:
                 index = int(m.groups()[0])
                 if 'operands' in source_node.keys():
