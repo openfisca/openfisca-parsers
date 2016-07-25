@@ -115,10 +115,10 @@ def show_json_graph(ofnode):
 
 
 def json_graph_to_asg(json_graph):
-    assert json_graph.keys()==['graph']
+    assert json_graph.keys() == ['graph']
     graph = json_graph['graph']
 
-    assert graph['directed']==True
+    assert graph['directed']
 
     edges = graph['edges']
     input_nodes = graph['nodes']
@@ -159,9 +159,10 @@ def json_graph_to_asg(json_graph):
 
     return output_nodes
 
+
 def deep_diff(d1, d2, path=""):
     for k in d1.keys():
-        if not d2.has_key(k):
+        if k not in d2:
             print path, ":"
             print k + " as key not in d2", "\n"
         else:
@@ -170,9 +171,9 @@ def deep_diff(d1, d2, path=""):
                     path = k
                 else:
                     path = path + "->" + k
-                deep_diff(d1[k],d2[k], path)
+                deep_diff(d1[k], d2[k], path)
             else:
                 if d1[k] != d2[k]:
                     print path, ":"
-                    print " - ", k," : ", d1[k]
-                    print " + ", k," : ", d2[k]
+                    print " - ", k, " : ", d1[k]
+                    print " + ", k, " : ", d2[k]
