@@ -70,13 +70,6 @@ def asg_to_json_graph(root_ofnode):
         id_by_ofnode_address[ofnode_address] = ofnode_id
         jgfnode = merge(ofnode, {
             'id': ofnode_id,
-            'label': u'{}\n{}'.format(
-                ofnode['type'],
-                '\n'.join(map(
-                    lambda item: u'{} = {}'.format(*item),
-                    valfilter(lambda val: not isinstance(val, (dict, list)), dissoc(ofnode, 'type')).items(),
-                    )),
-                ).strip()
             })
         for key, value in ofnode.items():
             if isinstance(value, list):
