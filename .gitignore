@@ -6,3 +6,4 @@ json/
 *.pyc
 *~
 node_modules/
+.ipynb_checkpoints
