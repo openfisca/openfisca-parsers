@@ -24,7 +24,6 @@
 
 
 from nose.tools import assert_in, assert_not_equal, assert_equal
-from pprint import pprint
 
 from openfisca_parsers.json_graph import asg_to_json_graph
 from openfisca_parsers.ofnodes import show_json
@@ -178,47 +177,39 @@ def test_merge():
 
     def rec_merge(node, replace_rules):
         if node['type'] == 'Module':
-            print ('REC MODULE ')
-            new_variables = []
-            for child in node['variables']:
-                new_child = rec_merge(child, replace_rules)
-                new_variables.append(new_child)
-            node['variables'] = new_variables
+            node['variables'] = [
+                rec_merge(child, replace_rules)
+                for child in node['variables']
+                ]
 
         if node['type'] == 'ArithmeticOperation':
-            print ('REC ARITHMETIC ' + node['operator'])
-            new_operands = []
-            for child in node['operands']:
-                new_operand = rec_merge(child, replace_rules)
-                new_operands.append(new_operand)
-            node['operands'] = new_operands
+            node['operands'] = [
+                rec_merge(child, replace_rules)
+                for child in node['operands']
+                ]
 
         if node['type'] == 'Variable':
-            print ('REC VARIABLE NAME ' + node['name'])
             if node['name'] in replace_rules:
                 node = replace_rules[node['name']]
             if 'formula' in node:
                 node['formula'] = rec_merge(node['formula'], replace_rules)
 
         if node['type'] == 'ValueForPeriod':
-            print ('REC VALUE FOR PERIOD')
             if 'name' in node['variable']:
-                if node['variable']['name'] in replace_rules:
-                    node['variable'] = replace_rules[node['variable']['name']]
                 node['variable'] = rec_merge(node['variable'], replace_rules)
         return node
 
-    def rec_check(node):
+    def recursive_assert(node):
         if node['type'] == 'Module':
             for child in node['variables']:
-                rec_check(child)
+                recursive_assert(child)
         if node['type'] == 'ArithmeticOperation':
             for child in node['operands']:
-                rec_check(child)
+                recursive_assert(child)
         if node['type'] == 'Variable' and 'formula' in node:
-                rec_check(node['formula'])
+                recursive_assert(node['formula'])
         if node['type'] == 'ValueForPeriod':
-                rec_check(node['variable'])
+                recursive_assert(node['variable'])
 
         if 'name' in node:
             assert_not_equal(node['name'],'d')
@@ -231,7 +222,7 @@ def test_merge():
     final_length = len(repr(module_ofnode))
 
     # CHECKING MERGE
-    rec_check(module_ofnode)
+    recursive_assert(module_ofnode)
     assert_equal(initial_length, final_length)
 
     # CHECKING RESULTING GRAPH
