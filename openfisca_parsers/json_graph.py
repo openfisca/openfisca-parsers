@@ -72,7 +72,7 @@ def asg_to_json_graph(root_ofnode):
             'id': ofnode_id,
             })
         for key, value in ofnode.items():
-            if isinstance(value, list):
+            if key == 'operands':
                 jgfnode = dissoc(jgfnode, key)
                 for index, item in enumerate(value):
                     if is_ofnode(item):
