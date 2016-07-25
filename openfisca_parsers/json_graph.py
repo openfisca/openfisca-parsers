@@ -73,16 +73,17 @@ def asg_to_json_graph(root_ofnode):
             'id': ofnode_id,
             })
         for key, value in ofnode.items():
-            if key == 'operands':
-                jgfnode = dissoc(jgfnode, key)
-                for index, item in enumerate(value):
-                    if is_ofnode(item):
-                        visit(item)
-                        append_edge({
-                            'source': ofnode_id,
-                            'target': id_by_ofnode_address[id(item)],
-                            'label': u'{}[{}]'.format(key, index),
-                            })
+            if isinstance(value, list):
+                if key != 'path':
+                    jgfnode = dissoc(jgfnode, key)
+                    for index, item in enumerate(value):
+                        if is_ofnode(item):
+                            visit(item)
+                            append_edge({
+                                'source': ofnode_id,
+                                'target': id_by_ofnode_address[id(item)],
+                                'label': u'{}[{}]'.format(key, index),
+                                })
             elif is_ofnode(value):
                 jgfnode = dissoc(jgfnode, key)
                 visit(value)
@@ -151,27 +152,26 @@ def json_graph_to_asg(json_graph):
                     if index < len(ops):
                         ops[index] = target_node
                     else:
-                        ops += (index-len(ops))*[None] + [target_node]
+                        ops += (index - len(ops)) * [None] + [target_node]
                 else:
-                    source_node['operands'] = index*[None] + [target_node]
+                    source_node['operands'] = index * [None] + [target_node]
             else:
-                raise ValueError('Unknown label : ' + label)
+                raise ValueError('Unknown label : {0}'.format(label))
 
     return output_nodes
 
 
-def deep_diff(d1, d2, path=""):
-    for k in d1.keys():
+def print_deep_diff(d1, d2, path=""):
+    for k in d1:
         if k not in d2:
             print path, ":"
             print k + " as key not in d2", "\n"
         else:
-            if type(d1[k]) is dict:
-                if path == "":
-                    path = k
-                else:
-                    path = path + "->" + k
-                deep_diff(d1[k], d2[k], path)
+            if isinstance(d1[k], dict):
+                path = k \
+                    if path == '' \
+                    else path + '->' + k
+                print_deep_diff(d1[k], d2[k], path)
             else:
                 if d1[k] != d2[k]:
                     print path, ":"
