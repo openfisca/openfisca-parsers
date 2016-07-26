@@ -26,6 +26,7 @@
 """Functions to convert an OpenFisca ASG to a JSON Graph format data structure."""
 
 import re
+import copy
 
 from toolz.curried import dissoc, merge, valfilter
 
@@ -127,18 +128,19 @@ def json_graph_to_asg(json_graph):
     output_nodes = {}
 
     for input_node in input_nodes:
-        input_id = input_node['id']
-        del input_node['id']
+        node_id = input_node['id']
 
-        output_nodes[input_id] = input_node
+        output_node = copy.deepcopy(input_node)
+        del output_node['id']
+        output_nodes[node_id] = output_node
 
     for edge in edges:
-        source = edge['source']
-        target = edge['target']
+        source_id = edge['source']
+        target_id = edge['target']
         label = edge['label']
 
-        source_node = output_nodes[source]
-        target_node = output_nodes[target]
+        source_node = output_nodes[source_id]
+        target_node = output_nodes[target_id]
 
         if label in ['input_period', 'output_period', 'operand', 'parameter',
                      'instant', 'variable', 'period', 'formula', 'value']:
