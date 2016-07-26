@@ -25,6 +25,8 @@
 
 """Functions to convert an OpenFisca ASG to a JSON Graph format data structure."""
 
+import re
+import copy
 
 from toolz.curried import dissoc, merge, valfilter
 
@@ -70,25 +72,19 @@ def asg_to_json_graph(root_ofnode):
         id_by_ofnode_address[ofnode_address] = ofnode_id
         jgfnode = merge(ofnode, {
             'id': ofnode_id,
-            'label': u'{}\n{}'.format(
-                ofnode['type'],
-                '\n'.join(map(
-                    lambda item: u'{} = {}'.format(*item),
-                    valfilter(lambda val: not isinstance(val, (dict, list)), dissoc(ofnode, 'type')).items(),
-                    )),
-                ).strip()
             })
         for key, value in ofnode.items():
             if isinstance(value, list):
-                jgfnode = dissoc(jgfnode, key)
-                for index, item in enumerate(value):
-                    if is_ofnode(item):
-                        visit(item)
-                        append_edge({
-                            'source': ofnode_id,
-                            'target': id_by_ofnode_address[id(item)],
-                            'label': u'{}[{}]'.format(key, index),
-                            })
+                if key != 'path':
+                    jgfnode = dissoc(jgfnode, key)
+                    for index, item in enumerate(value):
+                        if is_ofnode(item):
+                            visit(item)
+                            append_edge({
+                                'source': ofnode_id,
+                                'target': id_by_ofnode_address[id(item)],
+                                'label': u'{}[{}]'.format(key, index),
+                                })
             elif is_ofnode(value):
                 jgfnode = dissoc(jgfnode, key)
                 visit(value)
@@ -118,3 +114,68 @@ def asg_to_json_graph(root_ofnode):
 
 def show_json_graph(ofnode):
     show_json(asg_to_json_graph(ofnode))
+
+
+def json_graph_to_asg(json_graph):
+    assert json_graph.keys() == ['graph']
+    graph = json_graph['graph']
+
+    assert graph['directed']
+
+    edges = graph['edges']
+    input_nodes = graph['nodes']
+
+    output_nodes = {}
+
+    for input_node in input_nodes:
+        node_id = input_node['id']
+
+        output_node = copy.deepcopy(input_node)
+        del output_node['id']
+        output_nodes[node_id] = output_node
+
+    for edge in edges:
+        source_id = edge['source']
+        target_id = edge['target']
+        label = edge['label']
+
+        source_node = output_nodes[source_id]
+        target_node = output_nodes[target_id]
+
+        if label in ['input_period', 'output_period', 'operand', 'parameter',
+                     'instant', 'variable', 'period', 'formula', 'value']:
+            source_node[label] = target_node
+        else:
+            m = re.match(r'^operands\[([0-9]+)\]$', label)
+            if m:
+                index = int(m.groups()[0])
+                if 'operands' in source_node.keys():
+                    ops = source_node['operands']
+                    if index < len(ops):
+                        ops[index] = target_node
+                    else:
+                        ops += (index - len(ops)) * [None] + [target_node]
+                else:
+                    source_node['operands'] = index * [None] + [target_node]
+            else:
+                raise ValueError('Unknown label : {0}'.format(label))
+
+    return output_nodes
+
+
+def print_deep_diff(d1, d2, path=""):
+    for k in d1:
+        if k not in d2:
+            print path, ":"
+            print k + " as key not in d2", "\n"
+        else:
+            if isinstance(d1[k], dict):
+                path = k \
+                    if path == '' \
+                    else path + '->' + k
+                print_deep_diff(d1[k], d2[k], path)
+            else:
+                if d1[k] != d2[k]:
+                    print path, ":"
+                    print " - ", k, " : ", d1[k]
+                    print " + ", k, " : ", d2[k]
