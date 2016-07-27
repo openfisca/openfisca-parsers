@@ -91,9 +91,9 @@ def main():
     parser.add_argument('--on-parse-error', choices=['hide', 'abort', 'show'], default='show',
                         help=u'What to do in case of error while parsing a Variable')
     parser.add_argument('--no-module-node', action='store_true', default=False,
-                        help="Do not include a Module node in the ASG. Helps graph visualization.")
+                        help="Do not include a Module node in the graph, simplify visualization.")
     parser.add_argument('--no-python-variables', action='store_true', default=False,
-                        help="Do not include PythonVariableDeclaration nodes in the ASG. Helps graph visualization.")
+                        help="Do not include PythonVariableDeclaration nodes in the graph, simplify visualization.")
     parser.add_argument('--variable', dest='variable_names', metavar='VARIABLE',
                         nargs='+', help=u'Parse only this simulation Variable(s)')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Increase output verbosity")
