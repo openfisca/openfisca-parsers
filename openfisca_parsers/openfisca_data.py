@@ -53,6 +53,7 @@ def get_entity_name(entity_class_name):
 
 value_type_by_column_name = {
     'AgeCol': 'age',
+    'BoolCol': 'bool',
     'FloatCol': 'float',
     'IntCol': 'int',
     'PeriodSizeIndependentIntCol': 'int',
