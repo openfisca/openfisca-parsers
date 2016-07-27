@@ -23,7 +23,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-"""Functions to navigate in OpenFisca ASG nodes."""
+"""Functions to navigate in the OpenFisca raw graph."""
 
 
 from toolz.curried import assoc, concatv, valfilter
@@ -37,31 +37,16 @@ def is_ofnode(value):
 
 def make_ofnode(ofnode, rbnode, context, with_rbnode=False):
     """
-    Create and return a new ofnode with a generated id, removing items with None values.
-    with_rbnode: if True, reference the rbnode from the '_rbnode' key in the ofnode.
+    Create and return a new ofnode with a generated id, removing items with
+        None values.
+    with_rbnode: if True, reference the rbnode from the '_rbnode' key in the
+        ofnode.
     """
     if with_rbnode:
         ofnode = assoc(ofnode, '_rbnode', rbnode)
     ofnode = valfilter(lambda value: value is not None, ofnode)
     return ofnode
 
-
-def reduce_nested_binary_operators(operator, operand1_ofnode, operand2_ofnode):
-    """
-    Reduce many binary ArithmeticOperation nodes into one equivalent n-ary ArithmeticOperation.
-
-    Examples:
-        +(a, b) => +(a, b)
-        +(+(a, b), c) => +(a, b, c)
-        +(a, +(b, c)) => +(a, b, c)
-        +(+(a, b), +(c, d)) => +(a, b, c, d)
-    """
-    operands_ofnodes = [operand1_ofnode, operand2_ofnode]
-    if operand1_ofnode['type'] == 'ArithmeticOperation' and operand1_ofnode['operator'] == operator:
-        operands_ofnodes = list(concatv(operand1_ofnode['operands'], [operand2_ofnode]))
-    if operand2_ofnode['type'] == 'ArithmeticOperation' and operand2_ofnode['operator'] == operator:
-        operands_ofnodes = list(concatv(operands_ofnodes[:-1], operand2_ofnode['operands']))
-    return operands_ofnodes
 
 
 def update_ofnode_stub(ofnode, merge):

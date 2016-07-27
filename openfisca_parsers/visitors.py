@@ -24,7 +24,7 @@
 
 
 """
-Functions converting RedBaron nodes to OpenFisca ASG nodes.
+Functions converting the RedBaron tree to an OpenFisca raw graph.
 
 Vocabulary:
 - rbnode: redbaron nodes
@@ -32,9 +32,10 @@ Vocabulary:
 - pyvariable: python variable
 
 ofnodes are JSON-like data structures describing OpenFisca elements,
-but replace some OpenFisca-Core specific vocabulary by more generic (no more columns for example).
+but replace some OpenFisca-Core specific vocabulary by more generic (no more
+columns for example).
 
-ofnodes have this shape: {'type': 'CamelCase'}. The other fields depend on the 'type' field.
+See the specification of the raw graph.
 """
 
 
@@ -49,7 +50,9 @@ from . import ofnodes as ofn, openfisca_data, rbnodes as rbn
 
 
 def is_significant_rbnode(rbnode):
-    return not isinstance(rbnode, (redbaron.nodes.EndlNode, redbaron.nodes.CommaNode, redbaron.nodes.DotNode))
+    return not isinstance(rbnode, (redbaron.nodes.EndlNode,
+                                   redbaron.nodes.CommaNode,
+                                   redbaron.nodes.DotNode))
 
 
 def to_unicode(string_or_unicode):
@@ -61,7 +64,8 @@ def to_unicode(string_or_unicode):
         string_or_unicode = string_or_unicode.decode('utf-8')
     else:
         assert isinstance(string_or_unicode, unicode), string_or_unicode
-        string_or_unicode = string_or_unicode.encode('raw_unicode_escape').decode('utf-8')
+        string_or_unicode = string_or_unicode.encode('raw_unicode_escape').
+            decode('utf-8')
     return string_or_unicode
 
 
@@ -73,19 +77,23 @@ def visit_rbnode(rbnode, context):
     visitors = keyfilter(lambda key: key.startswith('visit_'), globals())
     visitor = visitors.get('visit_' + rbnode.type)
     if visitor is None:
-        raise NotImplementedError(u'Visitor not declared for type="{type}", source="{source}"'.format(
-            source=rbnode,
-            type=rbnode.type,
-            ))
+        raise NotImplementedError(
+            u'Visitor not declared for type="{type}", source="{source}"'.format(
+                source=rbnode,
+                type=rbnode.type,
+                ))
     ofnode = visitor(rbnode, context)
     return ofnode
 
 
 # Specific visitors: (rbnode, context) -> ofnode | dict | None
 # Visitors can:
-# - return an ofnode, a dict (which is not an ofnode of the graph, but is useful for the calling visitor), or None
-# - write to context: the caller of the visitor who wrote to context should erase it after usage
-# Returning a dict is simpler than writing to context because there is no cleanup management.
+# - return an ofnode, a dict (which is not an ofnode of the graph, but is
+#       useful for the calling visitor), or None
+# - write to context: the caller of the visitor who wrote to context should
+#       erase it after usage
+# Returning a dict is simpler than writing to context because there is no
+#       cleanup management.
 
 
 def visit_binary_operator(rbnode, context):

@@ -1,8 +1,8 @@
-#  Raw Graph specifications
+#  Refined Graph specifications
 
-A raw graph is what is derived directly from the parsing of OpenFisca python/numpy source code. Some constructs are still dependent to the python/numpy code and should be abstracted to produce an abstract OpenFisca graph.
+The refined graph is the reference representation of an OpenFisca modelisation. It tells nothing about the way the computations are performed.
 
-Here are the specifications of the OpenFisca raw graph.
+Here is the specification of the OpenFisca refined graph.
 
 - [Node objects](#node-objects)
 - ...
