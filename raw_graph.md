@@ -8,7 +8,7 @@ Here is the specification of the OpenFisca raw graph nodes.
 - ...
 
 
-# Typing in OpenFisca
+# Types in OpenFisca
 
 Several typing systems are complementary in an OpenFisca graph.
 
