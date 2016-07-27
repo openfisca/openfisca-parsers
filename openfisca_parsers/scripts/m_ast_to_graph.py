@@ -35,7 +35,7 @@ import logging
 import os
 import sys
 
-from toolz.curried import assoc, concat, filter, get, groupby, map, pipe, pluck, valmap
+from toolz.curried import assoc, concat, filter, get, groupby, pipe, pluck, valmap
 
 from openfisca_parsers.json_graph import asg_to_json_graph
 from openfisca_parsers import show_json
@@ -63,21 +63,21 @@ def filter_application(application_name):
 
 
 def resolve_symbols(root_node):
-    def traverse(node):
+    def transform(node, path):
         if isinstance(node, list):
-            return list(map(traverse, node))
+            for index, item in enumerate(node):
+                transform(item, path={'parent': node, 'key': index})
         elif is_node(node):
             if node['type'] == 'symbol':
                 formula_node = formula_node_by_name.get(node['value'])
                 if formula_node is None:
                     log.warning(u'Formula "{}" not found'.format(node['value']))
-                # else:
-                #     log.warning(u'Formula "{}" found'.format(node['value']))
-                return formula_node or node
+                else:
+                    # log.warning(u'Formula "{}" found'.format(node['value']))
+                    path['parent'][path['key']] = formula_node
             else:
-                return valmap(traverse, node)
-        else:
-            return node
+                for key, value in node.items():
+                    transform(value, path={'parent': node, 'key': key})
 
     formulas = pipe(
         root_node['regles'],
@@ -91,7 +91,8 @@ def resolve_symbols(root_node):
         groupby('name'),
         valmap(get(0)),  # groupby creates lists.
         )
-    return traverse(root_node)
+    transformed_node = transform(root_node, path={'parent': None, 'keys': []})
+    return transformed_node
 
 
 # Main function for script
@@ -114,15 +115,12 @@ def main():
         'name': os.path.basename(args.m_ast_json_file_path),
         'regles': regles_nodes,
         }
-    transformed_module_node = pipe(
-        module_node,
-        filter_application('batch'),
-        resolve_symbols,
-        )
+    module_node_1 = filter_application('batch')(module_node)
+    resolve_symbols(module_node_1)
     json_graph = asg_to_json_graph(
-        transformed_module_node['regles']
+        module_node_1['regles']
         if args.no_module_node
-        else transformed_module_node
+        else module_node_1
         )
     show_json(json_graph)
 
