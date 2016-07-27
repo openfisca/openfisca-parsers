@@ -5,5 +5,4 @@ json/
 *.egg-info
 *.pyc
 *~
-node_modules/
 .ipynb_checkpoints
