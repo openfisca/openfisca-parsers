@@ -26,7 +26,7 @@
 from nose.tools import assert_in
 
 from openfisca_parsers.json_graph import asg_to_json_graph
-from openfisca_parsers.ofnodes import show_json
+from openfisca_parsers import show_json
 
 
 def test_same_period():

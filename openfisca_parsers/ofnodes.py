@@ -26,16 +26,7 @@
 """Functions to navigate in OpenFisca ASG nodes."""
 
 
-import json
-
 from toolz.curried import assoc, concatv, valfilter
-
-
-# Input / output functions
-
-
-def show_json(ofnodes):
-    print(json.dumps(ofnodes, ensure_ascii=False, indent=2, sort_keys=True).encode('utf-8'))
 
 
 # OpenFisca nodes creation / manipulation functions

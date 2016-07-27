@@ -27,7 +27,6 @@ from nose.tools import assert_equal, assert_not_equal, assert_not_in
 from redbaron import RedBaron
 
 from openfisca_parsers import contexts, visitors
-from openfisca_parsers.json_graph import show_json_graph
 
 
 def test_legislation_at():

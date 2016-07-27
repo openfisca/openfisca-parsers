@@ -30,7 +30,7 @@ import copy
 
 from toolz.curried import dissoc, merge, valfilter
 
-from .ofnodes import is_ofnode, show_json
+from .ofnodes import is_ofnode
 
 
 def asg_to_json_graph(root_ofnode):
@@ -110,10 +110,6 @@ def asg_to_json_graph(root_ofnode):
             'edges': edges,
             },
         }
-
-
-def show_json_graph(ofnode):
-    show_json(asg_to_json_graph(ofnode))
 
 
 def json_graph_to_asg(json_graph):

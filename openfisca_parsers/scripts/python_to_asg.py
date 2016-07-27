@@ -40,7 +40,7 @@ from redbaron import RedBaron
 
 from openfisca_parsers import contexts, rbnodes, visitors
 from openfisca_parsers.json_graph import asg_to_json_graph
-from openfisca_parsers.ofnodes import show_json
+from openfisca_parsers import show_json
 
 
 log = logging.getLogger(__name__)
