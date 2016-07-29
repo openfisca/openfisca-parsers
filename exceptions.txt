@@ -9,3 +9,5 @@ prelevements_obligatoires/prelevements_sociaux/cotisations_sociales/preprocessin
 zone_apl_by_depcom / preload_zone_apl : data loading
 
 class rsa_ressource_calculator : not a variable
+
+apply_thresholds : used only twice
