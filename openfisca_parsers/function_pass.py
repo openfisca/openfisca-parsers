@@ -3,7 +3,7 @@
 from toolz.curried import keyfilter
 
 
-from .exceptions import my_assert, NotImplementedParsingError
+from .exceptions import my_assert, NotImplementedParsingError, FunctionTooComplexException
 
 
 def visit_function_rbnode(rbnode, s):
@@ -119,7 +119,7 @@ def visit_function_unitary_operator(rbnode, s):
     s['var_tmp'] = var_tmp
     return
 
-
+# Find quickly with Ctrl+F *name
 def visit_function_name(rbnode, s):
     name = rbnode.value
 
@@ -265,7 +265,7 @@ def visit_function_name(rbnode, s):
 
         if base['type'] == 'self':
             self_op = name
-            if self_op in ['split_by_roles', 'sum_by_entity', 'filter_role']:
+            if self_op in ['split_by_roles', 'sum_by_entity', 'filter_role', 'cast_from_entity_to_role', 'cast_from_entity_to_roles']:
                 var_tmp = {
                     'type': 'self_operation_tmp',
                     'nodetype': 'self_operation_tmp',
@@ -294,6 +294,18 @@ def visit_function_name(rbnode, s):
             }
             s['atomtrailers_new_base'] = var_tmp
             return
+
+        if base['type'] == 'value':
+            if name == 'array':
+                var_tmp = {
+                    'type': 'value',
+                    'nodetype': 'value_op',
+                    'operator': name,
+                }
+                s['atomtrailers_new_base'] = var_tmp
+                return
+
+            raise NotImplementedParsingError('Unknown value op {}'.format(name), rbnode, s)
 
         raise NotImplementedParsingError('Unknown op {}'.format(name), rbnode, s)
 
@@ -423,6 +435,14 @@ def visit_function_for(rbnode, s):
     return
 
 
+def visit_function_ifelseblock(rbnode, s):
+    my_assert(s['keyword'] == 'function', rbnode, s)
+
+    # too complex (TODO)
+    raise FunctionTooComplexException('ifelseblock', rbnode, s)
+    return
+
+
 def visit_function_def(rbnode, s):
     my_assert(s['keyword'] == 'function', rbnode, s)
 
@@ -448,6 +468,7 @@ def visit_function_string(rbnode, s):
     raise NotImplementedParsingError('', rbnode, s)
 
 
+# Find quickly with Ctrl+F *call
 def visit_function_call(rbnode, s):
     my_assert(s['keyword'] == 'atomtrailers', rbnode, s)
 
@@ -525,7 +546,7 @@ def visit_function_call(rbnode, s):
     if base['type'] == 'self_operation_tmp':
         self_op = base['operator']
 
-        if self_op in ['sum_by_entity', 'filter_role']:
+        if self_op in ['sum_by_entity', 'filter_role', 'cast_from_entity_to_role', 'cast_from_entity_to_roles']:
             # no assertion about args (TODO)
             var_tmp = {
                 'type': 'value',
@@ -632,6 +653,16 @@ def visit_function_call(rbnode, s):
 
         raise NotImplementedParsingError('Unknown period_tmp op.', rbnode, s)
 
+    if base['type'] == 'parameter':
+        var_tmp = {
+            'type': 'parameter',
+            'nodetype': 'parameter',
+            'instant': base['instant'],
+            'path': base['path'] + [{'arg_list': arg_list, 'arg_dict': arg_dict}],
+        }
+        s['atomtrailers_new_base'] = var_tmp
+        return
+
     raise NotImplementedParsingError('Unknown caller', rbnode, s)
 
 
@@ -651,7 +682,7 @@ def visit_function_getitem(rbnode, s):
     if base['type'] == 'split_by_roles':
         var_tmp = {
             'type': 'value',
-            'nodetype': 'slit_by_roles_with_role',
+            'nodetype': 'split_by_roles_with_role',
             'operator': base['operator'],
             'split_arg_list': base['arg_list'],
             'split_arg_dict': base['arg_dict'],
@@ -669,7 +700,7 @@ def parse(parsed_modules, parsed_classes):
     functions_too_complex = []
 
     for module_name, module in parsed_classes.items():
-        print('Visiting module {}'.format(module_name))
+        print('*** Visiting module {}'.format(module_name))
 
         parsed_functions[module_name] = {
             'classes': {},
