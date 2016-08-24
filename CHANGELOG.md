@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.5
+
+* Follow OpenFisca-Core major release
+
 ## 0.5.4 – [diff](https://github.com/openfisca/openfisca-core/compare/0.5.3...0.5.4)
 
 * Fix too strict dependency to core
