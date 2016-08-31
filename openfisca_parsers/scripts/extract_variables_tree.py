@@ -100,8 +100,7 @@ def create_variables_tree(country_package, input_variables = False, computed_var
                         variables_node['variables'] = module_variables_name
 
     if computed_variables:
-        TaxBenefitSystem = country_package.init_country()
-        tax_benefit_system = TaxBenefitSystem()
+        tax_benefit_system = country_package.CountryTaxBenefitSystem()
 
         for module_name in sys.modules.keys():
             if module_name.startswith(country_package.__name__) and not module_name.endswith('.__future__'):
