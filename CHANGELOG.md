@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.6
+
+* Update tax and benefit system initialization method in scripts.
+
 ## 0.5.5
 
 * Follow OpenFisca-Core major release
