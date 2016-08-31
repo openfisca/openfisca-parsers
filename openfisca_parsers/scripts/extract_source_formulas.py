@@ -51,8 +51,7 @@ def main():
     logging.basicConfig(level = logging.DEBUG if args.verbose else logging.WARNING, stream = sys.stdout)
 
     country_package = importlib.import_module(args.country_package)
-    TaxBenefitSystem = country_package.init_country()
-    tax_benefit_system = TaxBenefitSystem()
+    tax_benefit_system = country_package.CountryTaxBenefitSystem()
 
     source_formulas = source_formulas_extractors.extract_source_formulas(tax_benefit_system, args.name)
     if source_formulas:

@@ -112,8 +112,7 @@ def main():
     logging.basicConfig(level = logging.DEBUG if args.verbose else logging.WARNING, stream = sys.stdout)
 
     country_package = importlib.import_module(args.country_package)
-    TaxBenefitSystem = country_package.init_country()
-    tax_benefit_system = TaxBenefitSystem()
+    tax_benefit_system = country_package.CountryTaxBenefitSystem()
 
     xml_file_path = os.path.join(tax_benefit_system.DECOMP_DIR, tax_benefit_system.DEFAULT_DECOMP_FILE) \
         if args.decomposition is None else args.decomposition
