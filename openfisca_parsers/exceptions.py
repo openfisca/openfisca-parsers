@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 angry_rbnode = None
 angry_state = None
@@ -15,7 +16,7 @@ class ParsingException(Exception):
         angry_rbnode = rbnode
         angry_state = s
 
-        super().__init__(message)
+        super(ParsingException).__init__(message)
 
 
 class NotImplementedParsingError(ParsingException):

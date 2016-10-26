@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+
 from toolz.curried import keyfilter
 
 from .exceptions import my_assert, NotImplementedParsingError
