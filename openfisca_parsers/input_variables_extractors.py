@@ -88,8 +88,6 @@ class Parser(formulas_parsers_2to3.Parser):
     def get_input_variables_and_parameters(self, column):
         formula_class = column.formula_class
         assert formula_class is not None, "Column {} has no formula".format(column.name)
-        if issubclass(formula_class, formulas.AbstractEntityToEntity):
-            return set([formula_class.variable_name]), set()
         if issubclass(formula_class, formulas.SimpleFormula) and formula_class.function is None:
             # Input variable
             return None, None
