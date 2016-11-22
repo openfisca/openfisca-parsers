@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0
+
+* Adapt parsers to core#v4
+
+* Breaking change:
+    * Not compatible with core#v3
+
 ## 0.6.0
 
 * Deprecate all features related to Julia
