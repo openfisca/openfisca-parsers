@@ -303,7 +303,7 @@ class Array(AbstractWrapper):
                 type(cell))
             self.cell = cell
         if entity_class is not None:
-            assert entity_class in parser.tax_benefit_system.entity_class_by_key_plural.itervalues(), \
+            assert entity_class in parser.tax_benefit_system.entities, \
                 "Unexpected value for entity class: {} of type {}".format(entity_class, type(entity_class))
             self.entity_class = entity_class
         if value is not None:
@@ -473,7 +473,7 @@ class Attribute(AbstractWrapper):
             if self.name == 'entity':
                 holder = self.subject.guess(parser.Holder)
                 if holder is not None:
-                    entity_class = parser.tax_benefit_system.entity_class_by_key_plural[holder.column.entity_key_plural]
+                    entity_class = holder.column.entity
                     return parser.Entity(entity_class = entity_class, parser = parser)
         elif issubclass(parser.FormulaClass, expected):
             if self.name == '__class__':
@@ -518,7 +518,7 @@ class Attribute(AbstractWrapper):
                 holder = self.subject.guess(parser.Holder)
                 if holder is not None:
                     column = holder.column
-                    entity_class = parser.tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                    entity_class = column.entity
                     cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
                     return parser.UniformDictionary(
                         key = parser.Period(
@@ -674,7 +674,7 @@ class Call(AbstractWrapper):
                             tax_benefit_system = parser.tax_benefit_system
                             column = tax_benefit_system.column_by_name[variable_name_wrapper.value]
                             cell_wrapper = parser.get_cell_wrapper(container = self.container, type = column.dtype)
-                            entity_class = tax_benefit_system.entity_class_by_key_plural[column.entity_key_plural]
+                            entity_class = column.entity
                         return parser.Array(
                             cell = cell_wrapper,
                             entity_class = entity_class,
@@ -1199,7 +1199,7 @@ class DatedHolder(AbstractWrapper):
     def entity_class(self):
         if self.column is None:
             return None
-        return self.parser.tax_benefit_system.entity_class_by_key_plural[self.column.entity_key_plural]
+        return self.column.entity
 
 
 class DateTime64(AbstractWrapper):
@@ -2820,7 +2820,7 @@ class Parser(conv.State):
     def entity_class(self):
         if self.column is None:
             return None
-        return self.tax_benefit_system.entity_class_by_key_plural[self.column.entity_key_plural]
+        return self.column.entity
 
     def get_cell_wrapper(self, container = None, type = None):
         wrapper_class = {
@@ -3053,7 +3053,4 @@ class Parser(conv.State):
 
     @property
     def person_class(self):
-        for entity_class in self.tax_benefit_system.entity_class_by_key_plural.itervalues():
-            if entity_class.is_persons_entity:
-                return entity_class
-        return None
+        return self.tax_benefit_system.person_entity
