@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+
+* Deprecate all features related to Julia
+* Remove obsolete scripts to convert build_columns
+
 ## 0.5.6
 
 * Update tax and benefit system initialization method in scripts.
