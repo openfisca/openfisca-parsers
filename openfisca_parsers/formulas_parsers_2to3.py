@@ -37,8 +37,8 @@ import lib2to3.pytree
 import os
 import textwrap
 
+from biryani.states import State
 import numpy as np
-from openfisca_core import conv
 
 
 symbols = lib2to3.pygram.python_symbols  # Note: symbols is a module.
@@ -2734,7 +2734,7 @@ class FormulaFunction(Function):
 # Default Parser
 
 
-class Parser(conv.State):
+class Parser(State):
     AndExpression = AndExpression
     AndTest = AndTest
     Array = Array
