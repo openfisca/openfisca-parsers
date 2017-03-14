@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+* Remove direct calls to Core.
+
 ## 1.0.1
 
 * Declare this package compatible with `core#5` 

@@ -31,8 +31,6 @@ import lib2to3.pygram
 import lib2to3.pytree
 import logging
 
-from openfisca_core import formulas
-
 from . import formulas_parsers_2to3
 
 
@@ -77,8 +75,7 @@ class Parser(formulas_parsers_2to3.Parser):
     def get_source_formulas(self, column):
         formula_class = column.formula_class
         assert formula_class is not None, "Column {} has no formula".format(column.name)
-        if issubclass(formula_class, formulas.SimpleFormula) and formula_class.function is None:
-            # Input variable
+        if column.is_input_variable():
             return None
         self.column = column
         self.source_formulas = source_formulas = set()
