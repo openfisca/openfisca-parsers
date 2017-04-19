@@ -14,7 +14,7 @@ deploy:
   - provider: pypi
     user: openfisca-bot
     password:
-      secure: wSdQWuaukoAh6GeXdlLb0W//iEZKWIRbJjd3XIYAht4K9aI1iZZR2HhRW+VutI7Mm+FUhi71BkvWRgri3J8xaBmmcq8a/yce2dkkNCVc/W8pJnBRXec+S/eGdSeufeoBji1MCZBOF9jRN1l8aRPyBq5U56y9ly7T7GGrF9Dmp/A=
+      secure: rMZBTS0dWNdlyY9HbrizVgMYKbKYbTvj3bczespBJf+l8b9xWBuftdNprLhXSp2r6V+p6r/3ZkUR8rq4h1/vyzENF8DGmUoqc8HfooT6UHckCmsVFqlmqRsVLAKfrutyX1bOZXOwK3jIhHltj6guC7A3UwpJ03pzxOz+u1pUOjU=
     distributions: bdist_wheel
     on:
       tags: true
