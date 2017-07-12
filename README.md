@@ -1,4 +1,17 @@
-# OpenFisca Parsers
+# OpenFisca Parsers - DEPRECATED
+
+## This package is deprecated
+
+**This package isn't maintained anymore. It won't evolve, and it is not guaranteed to be compatible with future versions of OpenFisca.**
+
+The aim of this package was to introduce instrospection tools for OpenFisca legislation code, for instance to build a dependency graph between OpenFisca variables.
+
+However, after a few years of existence, it appeared:
+  - That the algorithms built were not reliable
+  - That the this package, untested and undocumented, was not maintainable
+  - That we could find simpler alternatives to this complex introspection
+ 
+## Introduction
 
 OpenFisca Parsers is part of the [OpenFisca](http://www.openfisca.fr/) project,
 a versatile microsimulation free software.
